@@ -1,6 +1,7 @@
 import { desc, inArray } from "drizzle-orm";
 import { History, Play } from "lucide-react";
 import { getDb, runRequests } from "@mdw/database";
+import { NoCriteriaBanner } from "@/components/no-criteria-banner";
 import { Badge, Card, EmptyState, PageHeader, type Tone } from "@/components/ui";
 import { SubmitButton } from "@/components/buttons";
 import { listRuns } from "@/lib/queries";
@@ -30,6 +31,7 @@ export default async function RunsPage() {
           </form>
         }
       />
+      <NoCriteriaBanner />
       {pending[0] && (
         <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
           Collecte manuelle demandée à {formatMoroccoTime(pending[0].createdAt)} — {pending[0].status === "pending" ? "en attente de prise en charge par le worker (≈15 s)." : "en cours d'exécution."}

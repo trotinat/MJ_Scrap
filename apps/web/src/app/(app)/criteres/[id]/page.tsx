@@ -37,8 +37,9 @@ function List({ values }: { values: string[] }) {
   );
 }
 
-export default async function CriterionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CriterionDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ajout?: string }> }) {
   const { id } = await params;
+  const justAdded = (await searchParams).ajout === "1";
   if (!z.string().uuid().safeParse(id).success) notFound();
   const c = await getCriterion(getDb(), id);
   if (!c) notFound();
@@ -112,6 +113,15 @@ export default async function CriterionDetailPage({ params }: { params: Promise<
         }
       />
 
+      {justAdded && (
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          Critère créé et collecte demandée. Le worker la démarre dans les 15 secondes ; suivez-la dans{" "}
+          <Link href="/collectes" className="font-medium underline">
+            Historique des collectes
+          </Link>
+          . Les produits trouvés apparaîtront ici. Vous pouvez affiner les filtres avec « Modifier » (mots-clés, exclusions, prix cible…).
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Filtres" className="lg:col-span-1">
           <dl className="space-y-3 text-sm">

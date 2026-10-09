@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Bell, CalendarClock, CheckCircle2, Package, Search, Sparkles, Target, TrendingDown } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
+import { NoCriteriaBanner } from "@/components/no-criteria-banner";
 import { Badge, Card, EmptyState, PageHeader, ProductImage, ScoreBadge, StatCard, FreshnessBadge, btn } from "@/components/ui";
 import { dashboardStats, listDeals } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, formatPct, NOTIF_STATUS_LABELS, relativeTime, RUN_STATUS_LABELS, RUN_TRIGGER_LABELS } from "@/lib/format";
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
         }
       />
 
+      <NoCriteriaBanner />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Produits surveillés" value={s.offers} icon={Package} hint="Offres actives en base" />
         <StatCard label="Critères actifs" value={s.activeCriteria} icon={Search} tone="blue" />

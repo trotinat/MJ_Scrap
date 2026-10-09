@@ -169,7 +169,8 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
     const settings: AppSettings = await getAppSettings(db);
     const criteria = await listCriteria(db, { enabledOnly: true });
     if (criteria.length === 0) {
-      fatal = "Aucun critère de recherche actif : rien à collecter.";
+      fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
+      status = "skipped";
     } else {
       await collect(deps, runId, criteria, settings, stats, recordError, now, log);
     }

@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/buttons";
 import { criteriaSummaries } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
 import { duplicateCriterionAction, seedExamplesAction, toggleCriterionAction } from "./actions";
+import { QuickAddFromUrl } from "./quick-add";
 
 export const metadata = { title: "Mes critères de recherche" };
 
@@ -23,6 +24,9 @@ export default async function CriteriaPage() {
           </Link>
         }
       />
+      <div className="mb-6">
+        <QuickAddFromUrl />
+      </div>
       {criteria.length === 0 ? (
         <EmptyState icon={Search} title="Aucun critère de recherche">
           <p>Créez votre premier critère, ou ajoutez les trois exemples (Smart TV, ordinateur portable, accessoires auto) pour les adapter.</p>
