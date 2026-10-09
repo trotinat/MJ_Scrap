@@ -5,12 +5,24 @@ collecte deux fois par jour (09:00 et 18:00, heure du Maroc), historique des
 prix, correspondance avec vos critères de recherche, classement des offres et
 alertes Telegram. Interface en français, montants en dirhams (MAD).
 
-> **État de validation** — tout le code est testé (110 tests unitaires et
+> **État de validation** — tout le code est testé (112 tests unitaires et
 > d'intégration sur PostgreSQL, parcours de bout en bout de l'interface).
 > L'extraction **en direct** sur marjanemall.ma n'a pas pu être vérifiée depuis
 > l'environnement de développement (accès réseau refusé) : lancez
 > `node dist/cli.js probe` sur le serveur avant de vous y fier
 > (voir [docs/DISCOVERY.md](docs/DISCOVERY.md)).
+
+## Ventes flash et critères recommandés
+
+- **Ventes flash** (menu de gauche) : tous les produits affichés sur les pages
+  promotionnelles suivies (`/ventes-flash`, `/destockage`… réglables dans
+  Paramètres) lors de la dernière collecte réussie, avec la remise annoncée,
+  l'évolution observée et les critères auxquels chaque produit correspond.
+  Ces pages sont collectées même sans aucun critère.
+- **Critères recommandés** : au premier démarrage, cinq critères actifs sont
+  ajoutés (Adidas Homme pointure 42, Ventes flash -40 % et plus, Smart TV 55"
+  4K, casques & écouteurs, friteuse sans huile). Un bouton sur « Mes critères
+  de recherche » rajoute ceux qui manquent.
 
 ## Architecture
 

@@ -148,6 +148,29 @@ export const priceHistory = pgTable("price_history", {
   index("price_history_observed_idx").on(t.observedAt),
 ]);
 
+/**
+ * Where an offer was seen (category, promotion page such as /ventes-flash),
+ * so the dashboard can show what is currently on a promotion page.
+ */
+export const listingAppearances = pgTable("listing_appearances", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  offerId: uuid("offer_id").notNull().references(() => productOffers.id, { onDelete: "cascade" }),
+  listingPath: text("listing_path").notNull(),
+  firstSeenAt: ts("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("listing_appearances_offer_path_uq").on(t.offerId, t.listingPath),
+  index("listing_appearances_path_seen_idx").on(t.listingPath, t.lastSeenAt),
+]);
+
+/** Last successful crawl of each listing page. */
+export const listingCrawls = pgTable("listing_crawls", {
+  path: text("path").primaryKey(),
+  lastSuccessAt: ts("last_success_at").notNull(),
+  itemCount: integer("item_count").notNull().default(0),
+  method: text("method"),
+});
+
 /* ----------------------------------------------------------------------------
  * Scraping runs
  * ------------------------------------------------------------------------- */

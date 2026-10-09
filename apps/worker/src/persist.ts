@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { priceHistory, productOffers, products, type Tx } from "@mdw/database";
+import { listingAppearances, priceHistory, productOffers, products, type Tx } from "@mdw/database";
 import { canonicalProductKey } from "@mdw/scraper";
 import { extractSpecs, type MatchableProduct, type StockStatus } from "@mdw/shared";
 import { historyFacts } from "@mdw/scoring";
@@ -22,6 +22,8 @@ export interface OfferObservation {
   rawSpecs: Record<string, string>;
   categoryPath: string | null;
   listingPath: string | null;
+  /** Every listing where the card was seen during this run (category, promotion page…). */
+  listingPaths?: string[];
   source: "detail" | "listing";
   extraction: string;
 }
@@ -171,12 +173,21 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     .where(eq(priceHistory.offerId, offerId))
     .orderBy(asc(priceHistory.observedAt), asc(priceHistory.id));
 
+  const seenOn = [...new Set([...(o.listingPaths ?? []), ...(o.listingPath ? [o.listingPath] : [])])];
+  for (const listingPath of seenOn) {
+    await tx
+      .insert(listingAppearances)
+      .values({ offerId, listingPath, firstSeenAt: now, lastSeenAt: now })
+      .onConflictDoUpdate({ target: [listingAppearances.offerId, listingAppearances.listingPath], set: { lastSeenAt: now } });
+  }
+
   const stockForMatch: StockStatus = o.stock !== "unknown" ? o.stock : (previous.stock ?? "unknown");
   const matchable: MatchableProduct = {
     title: o.title,
     brand: o.brand ?? product!.brand,
     modelRef: o.modelRef ?? product!.modelRef,
     categoryPath: o.categoryPath ?? product!.categoryPath,
+    listingPaths: seenOn,
     priceCents: o.priceCents,
     originalPriceCents: o.originalPriceCents,
     advertisedDiscountPct: o.advertisedDiscountPct,

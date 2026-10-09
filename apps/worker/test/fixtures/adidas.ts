@@ -1,3 +1,4 @@
+import { RECOMMENDED_CRITERIA } from "@mdw/shared";
 // Observed data and criterion for the Adidas filtered-listing test (also used by the preview).
 /**
  * Cards seen on 9 Oct 2026 (16:10 UTC) at the URL below, read through a
@@ -21,18 +22,5 @@ export const OBSERVED: [string, number, number, number][] = [
   ["Adidas-SHOES-DURAMO RC2 M MUTPRP/FLAAQU/LURABL", 389, 599, 35],
 ];
 
-export const ADIDAS_CRITERION_INPUT = {
-  name: "Adidas Homme – pointure 42",
-  description: "Boutique officielle Adidas filtrée sur le site : pointure 42, Homme, livraison express, tri par prix croissant.",
-  enabled: true,
-  notifyMode: "all" as const,
-  notifyMinScore: 50,
-  minPriceDropPct: 5,
-  filters: {
-    categoryPaths: [ADIDAS_URL],
-    keywords: ["chaussures", "shoes", "baskets", "sneakers", "claquette", "mules"],
-    includedBrands: ["Adidas"],
-    excludedCharacteristics: ["enfants", "enfant", "femme", "femmes", "W"],
-  },
-};
-
+/** The same criterion is shipped as the first recommended preset. */
+export const ADIDAS_CRITERION_INPUT = RECOMMENDED_CRITERIA[0]!;

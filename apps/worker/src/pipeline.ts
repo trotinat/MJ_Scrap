@@ -3,6 +3,7 @@ import type pg from "pg";
 import {
   dealMatches,
   getAppSettings,
+  listingCrawls,
   getNotificationSettings,
   listCriteria,
   productOffers,
@@ -63,7 +64,7 @@ export async function runScrape(deps: PipelineDeps, trigger: RunTrigger, schedul
 }
 
 /** Light pre-filter on listing data so that only plausible candidates get a detail fetch. */
-export function couldMatch(item: ListingItem, c: Criterion): boolean {
+export function couldMatch(item: ListingItem, c: Criterion, seenOn: string[] = [item.listingPath]): boolean {
   const f = c.filters;
   const keywords = [...f.keywords, ...f.altKeywords];
   const title = `${item.title}`;
@@ -72,7 +73,7 @@ export function couldMatch(item: ListingItem, c: Criterion): boolean {
       return false;
     }
   }
-  if (keywords.length === 0 && f.categoryPaths.length > 0 && !f.categoryPaths.some((p) => item.listingPath.startsWith(p))) return false;
+  if (keywords.length === 0 && f.categoryPaths.length > 0 && !f.categoryPaths.some((p) => seenOn.some((s) => s.startsWith(p)))) return false;
   if (item.priceCents !== null) {
     // Generous margins: the detail page is authoritative.
     if (f.maxPrice !== null && item.priceCents > madToCents(f.maxPrice) * 1.15) return false;
@@ -168,7 +169,8 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
   try {
     const settings: AppSettings = await getAppSettings(db);
     const criteria = await listCriteria(db, { enabledOnly: true });
-    if (criteria.length === 0) {
+    // Promotion pages (Ventes flash…) are collected even without criteria.
+    if (criteria.length === 0 && settings.dealPagePaths.length === 0) {
       fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
       status = "skipped";
     } else {
@@ -242,7 +244,7 @@ async function collect(
   const paths = [...new Set([...criteria.flatMap((c) => c.filters.categoryPaths), ...settings.dealPagePaths])];
   stats.listingPaths = paths.length;
   const crawledPaths: string[] = [];
-  const items = new Map<string, { item: ListingItem; categoryPath: string | null }>();
+  const items = new Map<string, { item: ListingItem; categoryPath: string | null; seenOn: Set<string> }>();
 
   for (const path of paths) {
     try {
@@ -251,13 +253,20 @@ async function collect(
       log.info({ path, method: res.method, cards: res.items.length }, "liste analysée");
       // An empty extraction is treated as a failure, so it can never mark offers as missing.
       if (res.items.length === 0) await recordError("listing", "Aucun produit extrait de cette page", path);
-      else crawledPaths.push(path);
+      else {
+        crawledPaths.push(path);
+        const crawl = { lastSuccessAt: now(), itemCount: res.items.length, method: res.method };
+        await db.insert(listingCrawls).values({ path, ...crawl }).onConflictDoUpdate({ target: listingCrawls.path, set: crawl });
+      }
       for (const item of res.items) {
         stats.cardsSeen!++;
         const existing = items.get(item.sourceId);
         const categoryPath = dealPaths.has(path) ? null : path;
-        if (!existing) items.set(item.sourceId, { item, categoryPath });
-        else if (!existing.categoryPath && categoryPath) existing.categoryPath = categoryPath;
+        if (!existing) items.set(item.sourceId, { item, categoryPath, seenOn: new Set([path]) });
+        else {
+          existing.seenOn.add(path);
+          if (!existing.categoryPath && categoryPath) existing.categoryPath = categoryPath;
+        }
       }
     } catch (err) {
       if (err instanceof AccessBlockedError || err instanceof RobotsDisallowedError) throw err;
@@ -267,7 +276,14 @@ async function collect(
   }
 
   /* 2. Choose candidates ---------------------------------------------------- */
-  const candidates = [...items.values()].filter(({ item }) => item.priceCents !== null && criteria.some((c) => couldMatch(item, c)));
+  const candidates = [...items.values()].filter(
+    ({ item, seenOn }) => item.priceCents !== null && criteria.some((c) => couldMatch(item, c, [...seenOn])),
+  );
+  // Every priced card from a promotion page is stored (listing data only) for the Ventes flash view.
+  const candidateIds = new Set(candidates.map((c) => c.item.sourceId));
+  const dealOnly = [...items.values()].filter(
+    ({ item, seenOn }) => item.priceCents !== null && !candidateIds.has(item.sourceId) && [...seenOn].some((p) => dealPaths.has(p)),
+  );
 
   // Offers that matched before but were not seen on listings: refresh their page.
   const seenSourceIds = [...items.keys()];
@@ -391,14 +407,14 @@ async function collect(
   );
   candidates.sort((a, b) => Number(knownIds.has(b.item.sourceId)) - Number(knownIds.has(a.item.sourceId)));
 
-  for (const { item, categoryPath } of candidates) {
-    let obs: OfferObservation = fromListing(item, categoryPath);
+  for (const { item, categoryPath, seenOn } of candidates) {
+    let obs: OfferObservation = { ...fromListing(item, categoryPath), listingPaths: [...seenOn] };
     if (budget > 0) {
       budget--;
       stats.detailFetches!++;
       const r = await adapter.fetchProduct(item.url);
       if (r.kind === "ok") {
-        obs = fromDetail(r.detail, categoryPath, item.listingPath);
+        obs = { ...fromDetail(r.detail, categoryPath, item.listingPath), listingPaths: [...seenOn] };
         if (r.detail.warnings.length) log.debug({ url: item.url, warnings: r.detail.warnings }, "avertissements d'extraction");
       } else {
         stats.detailFailures!++;
@@ -408,6 +424,14 @@ async function collect(
     }
     try {
       await handle(obs);
+    } catch (err) {
+      await recordError("store", (err as Error).message, item.url);
+    }
+  }
+
+  for (const { item, categoryPath, seenOn } of dealOnly) {
+    try {
+      await handle({ ...fromListing(item, categoryPath), listingPaths: [...seenOn] });
     } catch (err) {
       await recordError("store", (err as Error).message, item.url);
     }

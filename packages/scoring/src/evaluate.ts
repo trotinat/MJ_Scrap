@@ -89,9 +89,13 @@ export function evaluate(
     else satisfied.push(`référence ${f.modelRef}`);
   }
 
-  if (f.categoryPaths.length > 0 && p.categoryPath) {
-    const inCat = f.categoryPaths.some((c) => p.categoryPath!.startsWith(c) || c.startsWith(p.categoryPath!));
-    if (!inCat) failed.push("catégorie différente");
+  // Category scope: the product's category or any listing it was seen on
+  // (e.g. /ventes-flash). Unknown location => keywords decide.
+  const places = [p.categoryPath, ...(p.listingPaths ?? [])].filter((x): x is string => Boolean(x));
+  if (f.categoryPaths.length > 0 && places.length > 0) {
+    const inCat = f.categoryPaths.some((c) => places.some((pl) => pl.startsWith(c) || c.startsWith(pl.split("?")[0]!)));
+    // Seen only on a promotion page (category unknown): the keywords decide.
+    if (!inCat && p.categoryPath) failed.push("catégorie différente");
   }
 
   if (f.includedBrands.length > 0) {

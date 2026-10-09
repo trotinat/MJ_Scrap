@@ -348,3 +348,73 @@ export async function systemHealth() {
   ]);
   return { dbOk, latencyMs, version, size, workers, counts: countsRes.rows[0] ?? {}, recentErrors, settings };
 }
+
+/* -------------------------------------------------------------- ventes flash */
+
+export type FlashRow = {
+  offer_id: string;
+  title: string;
+  url: string;
+  image_url: string | null;
+  brand: string | null;
+  seller: string | null;
+  current_price_cents: number;
+  original_price_cents: number | null;
+  advertised_discount_pct: number | null;
+  previous_price_cents: number | null;
+  min_price_cents: number | null;
+  first_seen_at: Date;
+  last_seen_at: Date;
+  matches: { id: string; name: string; score: number }[];
+};
+
+export type FlashSort = "discount" | "price" | "drop" | "new";
+
+/** Promotion pages that were crawled at least once, with their last successful crawl. */
+export async function flashPages() {
+  const rows = await db().execute<{ path: string; last_success_at: Date; item_count: number; method: string | null }>(sql`
+    select path, last_success_at, item_count, method from listing_crawls order by path`);
+  return rows.rows.map((r) => ({ ...r, last_success_at: new Date(r.last_success_at) }));
+}
+
+/**
+ * Offers currently displayed on a promotion page: seen during the last
+ * successful crawl of that page (a 1-hour margin covers long runs).
+ */
+export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+  const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
+  const order =
+    opts.sort === "price"
+      ? sql`o.current_price_cents asc`
+      : opts.sort === "drop"
+        ? sql`(case when prev.price_cents > 0 then (o.current_price_cents - prev.price_cents)::numeric / prev.price_cents end) asc nulls last`
+        : opts.sort === "new"
+          ? sql`a.first_seen_at desc`
+          : sql`o.advertised_discount_pct desc nulls last`;
+  const rows = await db().execute<FlashRow>(sql`
+    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, o.seller,
+           o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
+           prev.price_cents as previous_price_cents, o.min_price_cents,
+           a.first_seen_at, a.last_seen_at,
+           coalesce((
+             select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
+             from deal_matches m join search_criteria c on c.id = m.criterion_id
+             where m.offer_id = o.id and m.is_match and c.enabled
+           ), '[]'::json) as matches
+    from listing_appearances a
+    join listing_crawls lc on lc.path = a.listing_path
+    join product_offers o on o.id = a.offer_id
+    join products p on p.id = o.product_id
+    left join lateral (
+      select ph.price_cents from price_history ph
+      where ph.offer_id = o.id
+      order by ph.observed_at desc, ph.id desc offset 1 limit 1
+    ) prev on true
+    where a.listing_path = ${path}
+      and a.last_seen_at >= lc.last_success_at - interval '1 hour'
+      and o.status = 'active'
+      ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
+    order by ${order}, o.title
+    limit 300`);
+  return rows.rows;
+}

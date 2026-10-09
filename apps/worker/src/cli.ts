@@ -11,6 +11,7 @@ import {
   getNotificationSettings,
   runMigrations,
   saveAppSettings,
+  seedRecommendedCriteria,
   setUserPassword,
 } from "@mdw/database";
 import { configureProxyFromEnv, MarjaneAdapter, parseListingHtml, parseProductPage } from "@mdw/scraper";
@@ -60,6 +61,8 @@ async function main() {
         await saveAppSettings(db, await getAppSettings(db));
         await getNotificationSettings(db);
         logger.info("migrations appliquées");
+        const added = await seedRecommendedCriteria(db, { once: true });
+        if (added) logger.info({ added }, "critères recommandés ajoutés");
         if ((await countUsers(db)) === 0) {
           if (config.ADMIN_EMAIL && config.ADMIN_PASSWORD) {
             await createUser(db, config.ADMIN_EMAIL, config.ADMIN_PASSWORD);

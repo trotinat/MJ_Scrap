@@ -47,6 +47,8 @@ export interface MatchableProduct {
   brand: string | null;
   modelRef: string | null;
   categoryPath: string | null;
+  /** Every listing (category, promotion page, filtered URL) where it was seen in this run. */
+  listingPaths?: string[];
   priceCents: number;
   originalPriceCents: number | null;
   advertisedDiscountPct: number | null;

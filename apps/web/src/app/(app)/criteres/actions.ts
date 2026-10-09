@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import {
+  seedRecommendedCriteria,
   createCriterion,
   deleteCriterion,
   duplicateCriterion,
@@ -128,4 +129,17 @@ export async function seedExamplesAction(): Promise<void> {
   await requireUser();
   for (const c of EXAMPLE_CRITERIA) await createCriterion(getDb(), c);
   revalidatePath("/criteres");
+}
+
+/** Adds the recommended criteria (enabled) that are not in the list yet, then requests a collection. */
+export async function seedRecommendedAction(): Promise<void> {
+  const user = await requireUser();
+  const db = getDb();
+  const added = await seedRecommendedCriteria(db);
+  if (added > 0) {
+    const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
+    if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
+  }
+  revalidatePath("/criteres");
+  revalidatePath("/collectes");
 }

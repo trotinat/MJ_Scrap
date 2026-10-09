@@ -1,18 +1,21 @@
 import Link from "next/link";
-import { Copy, Pencil, Plus, Search } from "lucide-react";
+import { Copy, Pencil, Plus, Search, Sparkles } from "lucide-react";
 import { getDb, listCriteria } from "@mdw/database";
+import { RECOMMENDED_CRITERIA } from "@mdw/shared";
 import { formatMad, madToCents, NOTIFY_MODE_LABELS } from "@mdw/shared";
 import { Badge, btn, EmptyState, PageHeader } from "@/components/ui";
 import { SubmitButton } from "@/components/buttons";
 import { criteriaSummaries } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
-import { duplicateCriterionAction, seedExamplesAction, toggleCriterionAction } from "./actions";
+import { duplicateCriterionAction, seedExamplesAction, seedRecommendedAction, toggleCriterionAction } from "./actions";
 import { QuickAddFromUrl } from "./quick-add";
 
 export const metadata = { title: "Mes critères de recherche" };
 
 export default async function CriteriaPage() {
   const [criteria, summaries] = await Promise.all([listCriteria(getDb()), criteriaSummaries()]);
+  const names = new Set(criteria.map((c) => c.name.trim().toLowerCase()));
+  const missingPresets = RECOMMENDED_CRITERIA.filter((c) => !names.has(c.name.trim().toLowerCase()));
   return (
     <>
       <PageHeader
@@ -27,6 +30,21 @@ export default async function CriteriaPage() {
       <div className="mb-6">
         <QuickAddFromUrl />
       </div>
+      {missingPresets.length > 0 && (
+        <div className="mb-6 rounded-xl border border-brand-100 bg-brand-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Sparkles className="h-4 w-4 text-brand-600" /> Critères recommandés
+              </p>
+              <p className="mt-1 text-sm text-slate-600">{missingPresets.map((c) => c.name).join(" · ")}</p>
+            </div>
+            <form action={seedRecommendedAction}>
+              <SubmitButton pendingLabel="Ajout…">Ajouter {missingPresets.length > 1 ? `les ${missingPresets.length} critères` : "ce critère"} et lancer une collecte</SubmitButton>
+            </form>
+          </div>
+        </div>
+      )}
       {criteria.length === 0 ? (
         <EmptyState icon={Search} title="Aucun critère de recherche">
           <p>Créez votre premier critère, ou ajoutez les trois exemples (Smart TV, ordinateur portable, accessoires auto) pour les adapter.</p>

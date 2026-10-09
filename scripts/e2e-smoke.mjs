@@ -46,7 +46,7 @@ try {
   await page.waitForURL(`${base}/`, { timeout: 20000 });
   check(true, "connexion");
 
-  for (const p of ["/", "/criteres", "/promotions", "/historique-prix", "/notifications", "/collectes", "/parametres", "/admin"]) {
+  for (const p of ["/", "/criteres", "/promotions", "/ventes-flash", "/historique-prix", "/notifications", "/collectes", "/parametres", "/admin"]) {
     const r = await page.goto(`${base}${p}`);
     check(r?.status() === 200, `page ${p}`);
   }

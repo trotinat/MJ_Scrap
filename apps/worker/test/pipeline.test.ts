@@ -4,6 +4,9 @@ import {
   createCriterion,
   createDb,
   dealMatches,
+  listCriteria,
+  listingAppearances,
+  listingCrawls,
   notifications,
   priceHistory,
   productOffers,
@@ -11,6 +14,8 @@ import {
   runRequests,
   saveAppSettings,
   scrapingRuns,
+  searchCriteria,
+  seedRecommendedCriteria,
   type DbHandle,
 } from "@mdw/database";
 import { AccessBlockedError, type DetailResult, type ListingResult, type SiteAdapter } from "@mdw/scraper";
@@ -34,6 +39,8 @@ interface FakeProduct {
   brand?: string | null;
   stock?: "in_stock" | "out_of_stock";
   path: string;
+  /** Other listings showing the same card (e.g. a TV also in Ventes flash). */
+  alsoOn?: string[];
 }
 
 class FakeSite implements SiteAdapter {
@@ -53,7 +60,7 @@ class FakeSite implements SiteAdapter {
     if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     if (this.blocked) throw new AccessBlockedError("Accès refusé par le site (HTTP 403)", 403);
     const items: ListingItem[] = [...this.products.values()]
-      .filter((p) => p.path === path)
+      .filter((p) => p.path === path || p.alsoOn?.includes(path))
       .map((p) => ({
         sourceId: p.sourceId,
         url: this.url(p.sourceId),
@@ -165,10 +172,10 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     const r1 = await runScrape(deps(), "manual");
     expect(r1.status).toBe("success");
     // The laptop criterion uses the "price_drops" mode: a new match alone does not alert.
-    expect(r1.stats).toMatchObject({ cardsSeen: 4, newOffers: 3, notificationsQueued: 1, notificationsSent: 1 });
+    expect(r1.stats).toMatchObject({ cardsSeen: 4, newOffers: 4, notificationsQueued: 1, notificationsSent: 1 });
 
-    // The blender matches no criterion and is not stored.
-    expect((await h.db.select({ n: count() }).from(productOffers))[0]!.n).toBe(3);
+    // The blender matches no criterion but comes from Ventes flash: stored from its card only.
+    expect((await h.db.select({ n: count() }).from(productOffers))[0]!.n).toBe(4);
     const matches = await h.db.select().from(dealMatches).where(eq(dealMatches.isMatch, true));
     expect(matches).toHaveLength(2); // Samsung TV (TV criterion) + laptop (laptop criterion)
     // The 50" TCL violates the mandatory 55" requirement: stored as an offer, never a match.
@@ -184,7 +191,7 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     const r2 = await runScrape(deps(), "schedule");
     expect(r2.stats.notificationsQueued).toBe(0);
     expect(tg.sent).toHaveLength(1);
-    expect((await h.db.select({ n: count() }).from(priceHistory))[0]!.n).toBe(6);
+    expect((await h.db.select({ n: count() }).from(priceHistory))[0]!.n).toBe(8);
 
     // Third run: the TV drops by 8 % -> one price-drop alert with numbers from our history.
     site.products.get("abbb332004180907425")!.priceCents = 413900;
@@ -203,6 +210,65 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     expect(tvMatch!.product_offers.minPriceCents).toBe(413900);
   });
 
+  it("collects promotion pages even without any criterion (Ventes flash)", async () => {
+    await h.db.delete(searchCriteria);
+    site.put({ sourceId: "aaae0shaver1", title: "Tondeuse Philips série 3000", priceCents: 4990, originalPriceCents: 17000, discount: 71, path: "/ventes-flash" });
+    const r = await runScrape(deps(), "manual");
+    expect(r.status).toBe("success");
+    expect(r.stats).toMatchObject({ listingPaths: 1, cardsSeen: 2, newOffers: 2, detailFetches: 0, matches: 0 });
+    const shown = await h.db.select().from(listingAppearances).where(eq(listingAppearances.listingPath, "/ventes-flash"));
+    expect(shown).toHaveLength(2);
+    const [crawl] = await h.db.select().from(listingCrawls).where(eq(listingCrawls.path, "/ventes-flash"));
+    expect(crawl).toMatchObject({ itemCount: 2, method: "http" });
+    expect(crawl!.lastSuccessAt.getTime()).toBe(clock.getTime());
+    // Advertised discount stays the site's value; no observed change on a first reading.
+    const [shaver] = await h.db.select().from(productOffers).where(eq(productOffers.sourceId, "aaae0shaver1"));
+    expect(shaver).toMatchObject({ currentPriceCents: 4990, originalPriceCents: 17000, advertisedDiscountPct: 71 });
+  });
+
+  it("matches a product seen on Ventes flash against category and promotion criteria", async () => {
+    await h.db.delete(searchCriteria);
+    expect(await seedRecommendedCriteria(h.db, { once: true })).toBe(5);
+    expect(await seedRecommendedCriteria(h.db, { once: true })).toBe(0); // only once per database
+    expect(await seedRecommendedCriteria(h.db)).toBe(0); // names already present
+    expect((await listCriteria(h.db, { enabledOnly: true })).length).toBe(5);
+
+    // A 55" 4K TV listed only on Ventes flash (category unknown) with -45 %.
+    site.put({
+      sourceId: "aaaf0tvflash",
+      title: "Smart TV TCL 55 pouces 4K UHD QLED",
+      brand: "TCL",
+      priceCents: 429900,
+      originalPriceCents: 790000,
+      discount: 45,
+      rawSpecs: { "Résolution d'affichage": "3840 x 2160 pixels - (Ultra HD 4K)", "Classe de diagonale": '55"' },
+      path: "/ventes-flash",
+    });
+    // The Samsung TV from the TV category is also shown on Ventes flash (31 %, below 40 %).
+    site.products.get("abbb332004180907425")!.alsoOn = ["/ventes-flash"];
+    await runScrape(deps(), "manual");
+
+    const matchedNames = async (sourceId: string) => {
+      const rows = await h.db
+        .select({ name: searchCriteria.name, isMatch: dealMatches.isMatch })
+        .from(dealMatches)
+        .innerJoin(searchCriteria, eq(searchCriteria.id, dealMatches.criterionId))
+        .innerJoin(productOffers, eq(productOffers.id, dealMatches.offerId))
+        .where(eq(productOffers.sourceId, sourceId));
+      return rows.filter((r) => r.isMatch).map((r) => r.name).sort();
+    };
+    expect(await matchedNames("aaaf0tvflash")).toEqual(["Smart TV 55\" 4K – moins de 6 000 MAD", "Ventes flash : -40 % et plus"]);
+    expect(await matchedNames("abbb332004180907425")).toEqual(["Smart TV 55\" 4K – moins de 6 000 MAD"]);
+    // The blender (no discount) is stored for the Ventes flash page but matches nothing.
+    expect(await matchedNames("aaad0blender")).toEqual([]);
+    const samsung = await h.db
+      .select({ path: listingAppearances.listingPath })
+      .from(listingAppearances)
+      .innerJoin(productOffers, eq(productOffers.id, listingAppearances.offerId))
+      .where(eq(productOffers.sourceId, "abbb332004180907425"));
+    expect(samsung.map((r) => r.path).sort()).toEqual([TV_PATH, "/ventes-flash"].sort());
+  });
+
   it("a blocked/failed run keeps existing data and never marks offers missing", async () => {
     await runScrape(deps(), "manual");
     site.blocked = true;
@@ -213,7 +279,7 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
       expect(r.stats.accessBlocked).toBe(true);
     }
     const offers = await h.db.select().from(productOffers);
-    expect(offers).toHaveLength(3);
+    expect(offers).toHaveLength(4); // 3 matched products + the Ventes flash blender
     expect(offers.every((o) => o.status === "active" && o.consecutiveMisses === 0)).toBe(true);
     const [failed] = await h.db.select().from(scrapingRuns).where(eq(scrapingRuns.status, "failed")).limit(1);
     expect(failed!.errorSummary).toMatch(/Accès refusé/);
@@ -263,8 +329,8 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     // "Restart": brand-new pool.
     h = createDb(TEST_DB_URL, 8);
     expect(await markInterruptedRuns(h.db, h.pool)).toBe(1);
-    expect((await h.db.select({ n: count() }).from(products))[0]!.n).toBe(3);
-    expect((await h.db.select({ n: count() }).from(priceHistory))[0]!.n).toBe(3);
+    expect((await h.db.select({ n: count() }).from(products))[0]!.n).toBe(4);
+    expect((await h.db.select({ n: count() }).from(priceHistory))[0]!.n).toBe(4);
     expect((await h.db.select({ n: count() }).from(notifications))[0]!.n).toBe(1);
   });
 

@@ -15,4 +15,5 @@ export async function requestRunAction(): Promise<void> {
   const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
   if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
   revalidatePath("/collectes");
+  revalidatePath("/ventes-flash");
 }

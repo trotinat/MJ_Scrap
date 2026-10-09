@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Tag,
   X,
+  Zap,
 } from "lucide-react";
 import { cx } from "./ui";
 
@@ -22,6 +23,7 @@ const LINKS = [
   { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
   { href: "/criteres", label: "Mes critères de recherche", icon: Search },
   { href: "/promotions", label: "Promotions détectées", icon: Tag },
+  { href: "/ventes-flash", label: "Ventes flash", icon: Zap },
   { href: "/historique-prix", label: "Historique des prix", icon: LineChart },
   { href: "/notifications", label: "Notifications Telegram", icon: Bell },
   { href: "/collectes", label: "Historique des collectes", icon: History },

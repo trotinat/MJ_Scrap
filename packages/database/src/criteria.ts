@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
-import { criterionFiltersSchema, criterionInputSchema, type Criterion, type CriterionInputRaw } from "@mdw/shared";
+import { criterionFiltersSchema, criterionInputSchema, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
-import { searchCriteria } from "./schema";
+import { applicationSettings, searchCriteria } from "./schema";
 
 type Row = typeof searchCriteria.$inferSelect;
 
@@ -81,4 +81,29 @@ export async function duplicateCriterion(db: DbOrTx, id: string): Promise<Criter
 
 export async function deleteCriterion(db: DbOrTx, id: string): Promise<void> {
   await db.delete(searchCriteria).where(eq(searchCriteria.id, id));
+}
+
+/**
+ * Adds the recommended criteria whose name does not exist yet.
+ * With `once`, runs a single time per database (flag in application_settings),
+ * so criteria the user deleted are not re-created on every start.
+ */
+export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean } = {}): Promise<number> {
+  const FLAG = "recommended_criteria_seeded_v1";
+  if (opts.once) {
+    const done = await db.select({ key: applicationSettings.key }).from(applicationSettings).where(eq(applicationSettings.key, FLAG)).limit(1);
+    if (done.length > 0) return 0;
+  }
+  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria)).map((r) => r.name.trim().toLowerCase()));
+  let added = 0;
+  for (const c of RECOMMENDED_CRITERIA) {
+    if (existing.has(c.name.trim().toLowerCase())) continue;
+    await createCriterion(db, c);
+    added++;
+  }
+  await db
+    .insert(applicationSettings)
+    .values({ key: FLAG, value: { at: new Date().toISOString(), added } })
+    .onConflictDoNothing();
+  return added;
 }

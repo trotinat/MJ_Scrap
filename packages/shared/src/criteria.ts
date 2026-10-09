@@ -186,3 +186,82 @@ export const EXAMPLE_CRITERIA: CriterionInputRaw[] = [
     },
   },
 ];
+
+/**
+ * Recommended criteria, enabled, added once on first start (and on demand
+ * from the criteria page). Paths come from the site structure observed in
+ * October 2026; each one stays editable.
+ */
+export const RECOMMENDED_CRITERIA: CriterionInputRaw[] = [
+  {
+    name: "Adidas Homme – pointure 42",
+    description: "Boutique officielle Adidas filtrée sur le site : pointure 42, Homme, livraison express, tri par prix croissant.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 50,
+    minPriceDropPct: 5,
+    filters: {
+      categoryPaths: [
+        "https://www.marjanemall.ma/boutique-officielle/adidas?maas_46800=42&m_shipping_express=1&maas_28003=Homme&sortBy=magento2_prod_fr_products_price_default_asc",
+      ],
+      keywords: ["chaussures", "shoes", "baskets", "sneakers", "claquette", "mules"],
+      includedBrands: ["Adidas"],
+      excludedCharacteristics: ["enfants", "enfant", "femme", "femmes", "W"],
+    },
+  },
+  {
+    name: "Ventes flash : -40 % et plus",
+    description: "Tout produit des Ventes flash dont la remise annoncée atteint au moins 40 %.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 70,
+    filters: {
+      categoryPaths: ["/ventes-flash"],
+      minDiscountPct: 40,
+    },
+  },
+  {
+    name: "Smart TV 55\" 4K – moins de 6 000 MAD",
+    description: "Téléviseur 4K de 55 pouces, idéalement sous 4 500 MAD.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 70,
+    filters: {
+      categoryPaths: ["/tv-son-photo/tv-home-cinema/televiseur"],
+      keywords: ["TV", "Téléviseur", "Smart TV"],
+      preferredBrands: ["TCL", "Samsung", "LG", "Hisense"],
+      maxPrice: 6000,
+      targetPrice: 4500,
+      mandatorySpecs: [
+        { attribute: "screen_size_in", operator: "eq", value: "55" },
+        { attribute: "resolution", operator: "gte", value: "4K" },
+      ],
+    },
+  },
+  {
+    name: "Casques & écouteurs – moins de 500 MAD",
+    description: "Casques et écouteurs avec au moins 20 % de remise annoncée.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 60,
+    filters: {
+      categoryPaths: ["/tv-son-photo/audio-hifi-musique/casque-ecouteur"],
+      keywords: ["casque", "écouteurs", "écouteur", "earbuds", "headphones"],
+      maxPrice: 500,
+      minDiscountPct: 20,
+    },
+  },
+  {
+    name: "Friteuse sans huile – moins de 1 000 MAD",
+    description: "Airfryer sous 1 000 MAD, idéalement sous 700 MAD.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 60,
+    filters: {
+      categoryPaths: ["/electromenager/cuisine-et-cuisson/airfryer"],
+      keywords: ["friteuse", "airfryer", "air fryer"],
+      maxPrice: 1000,
+      targetPrice: 700,
+    },
+  },
+];
