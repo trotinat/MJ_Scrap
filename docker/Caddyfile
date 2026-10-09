@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# HTTPS certificates are obtained and renewed automatically (Let's Encrypt).
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Caddy replaces any client-supplied X-Forwarded-For with the real client
+	# address (no trusted proxies configured), which the login rate limiter uses.
+	reverse_proxy web:3000
+
+	log {
+		output stdout
+		format json
+	}
+}

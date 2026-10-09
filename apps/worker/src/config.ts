@@ -41,7 +41,9 @@ const envSchema = z.object({
 export type WorkerConfig = z.infer<typeof envSchema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
-  const parsed = envSchema.safeParse(env);
+  // Empty variables (e.g. "SCRAPER_USER_AGENT=" from docker compose) mean "use the default".
+  const cleaned = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v.trim() !== ""));
+  const parsed = envSchema.safeParse(cleaned);
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`Configuration invalide : ${msg}`);

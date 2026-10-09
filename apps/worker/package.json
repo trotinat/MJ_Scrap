@@ -15,10 +15,13 @@
     "@mdw/scoring": "workspace:*",
     "@mdw/scraper": "workspace:*",
     "@mdw/shared": "workspace:*",
+    "cheerio": "^1.2.0",
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.16.3",
     "pino": "^10.4.0",
+    "playwright": "1.56.1",
+    "undici": "^7.30.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

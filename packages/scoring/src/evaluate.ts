@@ -3,6 +3,7 @@ import {
   classifyScore,
   formatMad,
   formatMoroccoTime,
+  frNumber,
   madToCents,
   normalizeRef,
   normalizeText,
@@ -160,7 +161,7 @@ export function evaluate(
       }
     } else if (max !== null) {
       value = clamp((max - price) / (max * 0.3));
-      note = `${roundTo(((max - price) / max) * 100)} % sous le maximum`;
+      note = `${frNumber(((max - price) / max) * 100)} % sous le maximum`;
       if (price <= max) satisfied.push(`prix dans votre budget (≤ ${formatMad(max)})`);
     }
     components.push({ key: "price", label: "Prix / objectif", weight: w.price, value, applicable, note });
@@ -181,7 +182,7 @@ export function evaluate(
       note =
         changeVsPreviousPct === 0
           ? "prix inchangé"
-          : `${changeVsPreviousPct! > 0 ? "+" : ""}${changeVsPreviousPct} % vs relevé précédent${isHistoricalLow ? ", plus bas observé" : ""}`;
+          : `${changeVsPreviousPct! > 0 ? "+" : ""}${frNumber(changeVsPreviousPct!)} % vs relevé précédent${isHistoricalLow ? ", plus bas observé" : ""}`;
     }
     components.push({ key: "observedDrop", label: "Baisse observée", weight: w.observedDrop, value, applicable, note });
   }
@@ -314,9 +315,9 @@ function buildExplanation(a: {
 
   if (a.history.observationCount >= 2 && a.changeVsPreviousPct !== null && a.history.previousPriceCents !== null) {
     if (a.changeVsPreviousPct < 0) {
-      parts.push(`Son prix est inférieur de ${Math.abs(a.changeVsPreviousPct)} % à celui observé lors de la précédente collecte (${formatMad(a.history.previousPriceCents)}).`);
+      parts.push(`Son prix est inférieur de ${frNumber(Math.abs(a.changeVsPreviousPct))} % à celui observé lors de la précédente collecte (${formatMad(a.history.previousPriceCents)}).`);
     } else if (a.changeVsPreviousPct > 0) {
-      parts.push(`Son prix a augmenté de ${a.changeVsPreviousPct} % depuis la précédente collecte.`);
+      parts.push(`Son prix a augmenté de ${frNumber(a.changeVsPreviousPct)} % depuis la précédente collecte.`);
     } else {
       parts.push("Prix inchangé depuis la précédente collecte.");
     }
@@ -329,7 +330,7 @@ function buildExplanation(a: {
 
   if (a.p.advertisedDiscountPct !== null) {
     parts.push(
-      `Remise annoncée par Marjane Mall : -${a.p.advertisedDiscountPct} %${a.p.originalPriceCents ? ` (prix barré ${formatMad(a.p.originalPriceCents)})` : ""}.`,
+      `Remise annoncée par Marjane Mall : -${frNumber(a.p.advertisedDiscountPct)} %${a.p.originalPriceCents ? ` (prix barré ${formatMad(a.p.originalPriceCents)})` : ""}.`,
     );
   }
   if (a.p.stock === "out_of_stock") parts.push("Attention : produit actuellement en rupture de stock.");

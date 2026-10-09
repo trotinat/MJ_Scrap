@@ -63,3 +63,8 @@ export function roundTo(value: number, decimals = 1): number {
   const f = 10 ** decimals;
   return Math.round(value * f) / f;
 }
+
+/** French percentage number without the sign handling: 7.8 -> "7,8". */
+export function frNumber(value: number, decimals = 1): string {
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: decimals }).replace(/[  ]/g, " ");
+}

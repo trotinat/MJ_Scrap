@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+table.data {
+  @apply w-full text-left text-sm;
+}
+table.data th {
+  @apply whitespace-nowrap border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+table.data td {
+  @apply border-b border-slate-100 px-3 py-2 align-top text-slate-700;
+}
+table.data tr:last-child td {
+  @apply border-b-0;
+}

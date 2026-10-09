@@ -1,0 +1,130 @@
+# Marjane Deals Watcher — production stack
+#   docker compose up -d --build
+# Services: PostgreSQL, one-shot migrations, scraping worker, web dashboard,
+# Caddy (HTTPS reverse proxy) and a daily database backup.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-mdw}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@db:5432/${POSTGRES_DB:-mdw}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+  SCRAPE_TIMES: ${SCRAPE_TIMES:-09:00,18:00}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mdw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}
+      POSTGRES_DB: ${POSTGRES_DB:-mdw}
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  migrate:
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    image: marjane-deals-watcher-worker:latest
+    command: ["node", "dist/cli.js", "migrate"]
+    environment:
+      <<: *app-env
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    logging: *logging
+
+  worker:
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    image: marjane-deals-watcher-worker:latest
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      WORKER_ID: worker-1
+      RENDER_MODE: ${RENDER_MODE:-auto}
+      SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-}
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    # Chromium needs a bigger /dev/shm than Docker's 64 MB default.
+    shm_size: "512mb"
+    init: true
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits: { memory: 1536m, cpus: "1.5" }
+    logging: *logging
+
+  web:
+    build: { context: ., dockerfile: docker/Dockerfile, target: web }
+    image: marjane-deals-watcher-web:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mdw}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@db:5432/${POSTGRES_DB:-mdw}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SCRAPE_TIMES: ${SCRAPE_TIMES:-09:00,18:00}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    init: true
+    deploy:
+      resources:
+        limits: { memory: 512m }
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN manquant}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    logging: *logging
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-mdw}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}
+      PGDATABASE: ${POSTGRES_DB:-mdw}
+      BACKUP_DIR: /backups
+      KEEP_DAILY: ${BACKUP_KEEP_DAILY:-14}
+      KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-8}
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    # Daily dump at 02:30 UTC (03:30 in Morocco, UTC+1), well away from the 09:00 / 18:00 runs.
+    entrypoint: ["/bin/sh", "-c", "echo '30 2 * * * /bin/sh /scripts/backup-db.sh >> /proc/1/fd/1 2>&1' | crontab - && exec crond -f -l 8"]
+    depends_on:
+      db: { condition: service_healthy }
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

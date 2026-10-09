@@ -1,4 +1,4 @@
-import { formatMad, formatMoroccoTime, roundTo, DEAL_CLASS_LABELS, type DealClass } from "@mdw/shared";
+import { formatMad, formatMoroccoTime, frNumber, DEAL_CLASS_LABELS, type DealClass } from "@mdw/shared";
 import type { NotificationEvent } from "@mdw/database";
 
 export function escapeHtml(s: string): string {
@@ -42,10 +42,10 @@ export function formatDealMessage(m: DealMessageInput, maxLength = 1024): string
   lines.push(
     `💰 Prix : <b>${formatMad(m.priceCents)}</b>${m.originalPriceCents ? ` <s>${formatMad(m.originalPriceCents)}</s>` : ""}`,
   );
-  if (m.advertisedDiscountPct !== null) lines.push(`🏷️ Remise annoncée par le site : -${roundTo(m.advertisedDiscountPct)} %`);
+  if (m.advertisedDiscountPct !== null) lines.push(`🏷️ Remise annoncée par le site : -${frNumber(m.advertisedDiscountPct)} %`);
   if (m.changeVsPreviousPct !== null && m.previousPriceCents !== null && m.changeVsPreviousPct !== 0) {
     const sign = m.changeVsPreviousPct > 0 ? "+" : "";
-    lines.push(`📊 Évolution observée : ${sign}${m.changeVsPreviousPct} % (relevé précédent ${formatMad(m.previousPriceCents)})`);
+    lines.push(`📊 Évolution observée : ${sign}${frNumber(m.changeVsPreviousPct)} % (relevé précédent ${formatMad(m.previousPriceCents)})`);
   }
   lines.push(`📦 Disponibilité : ${STOCK_LABEL[m.stock]}${m.seller ? ` · Vendu par ${escapeHtml(m.seller)}` : ""}`);
   lines.push(`🔎 Critère : ${escapeHtml(m.criterionName)}`);

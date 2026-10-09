@@ -54,7 +54,7 @@ describe("message formatting", () => {
     expect(html).toContain("Offre exceptionnelle (87/100)");
     expect(html).toContain("<b>4 149,00 MAD</b> <s>6 500,00 MAD</s>");
     expect(html).toContain("Remise annoncée par le site : -36 %");
-    expect(html).toContain("Évolution observée : -7.8 % (relevé précédent 4 499,00 MAD)");
+    expect(html).toContain("Évolution observée : -7,8 % (relevé précédent 4 499,00 MAD)");
     expect(html).toContain("En stock · Vendu par ElectroElaissi");
     expect(html).toContain('<a href="https://www.marjanemall.ma/p/tv-abbb332004180907425">Voir l\'offre sur Marjane Mall</a>');
     expect(html).toContain("Relevé le 9 oct. 2026, 18:04");
