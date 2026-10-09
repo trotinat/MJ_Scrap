@@ -38,6 +38,10 @@ export function startHealthServer(port: number, db: Db, scheduler: Scheduler): h
       }),
     );
   });
+  // A busy port must never stop the scheduler: only the health endpoint is lost.
+  server.on("error", (err) => {
+    console.error(JSON.stringify({ level: "warn", msg: `endpoint /health indisponible sur le port ${port}`, err: (err as Error).message }));
+  });
   server.listen(port, "0.0.0.0");
   return server;
 }

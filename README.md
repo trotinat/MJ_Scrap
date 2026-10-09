@@ -54,36 +54,28 @@ Guide complet : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) ·
 Telegram : [docs/TELEGRAM.md](docs/TELEGRAM.md) ·
 Règles métier et exploitation : [docs/OPERATIONS.md](docs/OPERATIONS.md)
 
-## Tester sur votre ordinateur sans Docker
+## Tester sur votre ordinateur sans Docker (Windows, macOS, Linux)
 
-Prérequis : Node.js 22 LTS, Git et PostgreSQL 16 (Windows : installeur EDB ; macOS : Postgres.app).
+Prérequis : Node.js 22 LTS et Git. **PostgreSQL n'a pas besoin d'être installé** :
+un PostgreSQL embarqué (paquet npm `embedded-postgres`) tourne depuis le dossier
+du projet, sans droits administrateur.
 
 ```bash
-# 1. Base de données (une seule fois), avec psql ou pgAdmin :
-#    CREATE USER mdw WITH PASSWORD 'mdw';  CREATE DATABASE mdw OWNER mdw;
-git clone https://github.com/trotinat/MJ_Scrap.git && cd MJ_Scrap
-corepack enable              # active pnpm
+git clone https://github.com/trotinat/MJ_Scrap.git
+cd MJ_Scrap
+corepack enable          # active pnpm
 pnpm install
-pnpm setup:browser           # télécharge Chromium pour les listes rendues en JavaScript
+pnpm setup:browser       # Chromium pour les listes rendues en JavaScript
+pnpm start:local         # base embarquée + migrations + tableau de bord + worker
 ```
 
-Créez un fichier `.env` à la racine du projet :
+Au premier lancement, `start:local` crée `.env` et affiche l'e-mail et le mot de
+passe du tableau de bord. Ouvrez http://localhost:3000. `Ctrl+C` arrête tout ;
+les données restent dans `.localdb/`. Test réel du scraper :
+`pnpm probe` (dans un second terminal, pendant que `start:local` tourne).
 
-```env
-DATABASE_URL=postgres://mdw:mdw@localhost:5432/mdw
-ADMIN_EMAIL=vous@exemple.ma
-ADMIN_PASSWORD=un-mot-de-passe-solide
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-```
-
-```bash
-pnpm db:migrate      # crée les tables et votre compte
-pnpm probe           # test réel du scraper sur Marjane Mall
-pnpm dev             # tableau de bord http://localhost:3000 + worker (collectes 09:00 / 18:00)
-```
-
-Les collectes planifiées ne tournent que tant que `pnpm dev` est lancé (et l'ordinateur allumé).
+Pour utiliser votre propre PostgreSQL, mettez son adresse dans `DATABASE_URL`
+(fichier `.env`) : la base embarquée n'est alors pas démarrée.
 
 ## Tester sur votre ordinateur (Docker Desktop)
 

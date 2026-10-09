@@ -14,3 +14,4 @@ packages/scraper/fixtures/live/
 *.tsbuildinfo
 next-env.d.ts
 *.local.*
+.localdb/
