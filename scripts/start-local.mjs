@@ -15,7 +15,7 @@
  */
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import EmbeddedPostgres from "embedded-postgres";
@@ -110,10 +110,11 @@ if (!PROD) {
   } catch {
     // not a git checkout: rebuild every time
   }
-  const webServer = path.join(root, "apps/web/.next/standalone/apps/web/server.js");
+  const webBuildId = path.join(root, "apps/web/.next/BUILD_ID");
+  const nextBin = path.join(root, "apps/web/node_modules/next/dist/bin/next");
   const workerEntry = path.join(root, "apps/worker/dist/index.js");
   const upToDate =
-    commit !== "unknown" && existsSync(stampFile) && readFileSync(stampFile, "utf8").trim() === commit && existsSync(webServer) && existsSync(workerEntry);
+    commit !== "unknown" && existsSync(stampFile) && readFileSync(stampFile, "utf8").trim() === commit && existsSync(webBuildId) && existsSync(workerEntry);
   if (!upToDate) {
     console.log("\nCompilation de la version optimisée (quelques minutes, uniquement après une mise à jour)…\n");
     try {
@@ -122,11 +123,10 @@ if (!PROD) {
       console.error(String(err));
       await shutdown(1);
     }
-    if (!existsSync(webServer) || !existsSync(workerEntry)) {
-      console.error("La compilation n'a pas produit les fichiers attendus (apps/web/.next/standalone, apps/worker/dist).");
+    if (!existsSync(webBuildId) || !existsSync(workerEntry)) {
+      console.error("La compilation n'a pas produit les fichiers attendus (apps/web/.next, apps/worker/dist).");
       await shutdown(1);
     }
-    cpSync(path.join(root, "apps/web/.next/static"), path.join(root, "apps/web/.next/standalone/apps/web/.next/static"), { recursive: true });
     if (commit !== "unknown") writeFileSync(stampFile, commit);
   } else {
     console.log("Version optimisée déjà compilée pour ce code : démarrage direct.");
@@ -134,7 +134,7 @@ if (!PROD) {
 
   // http://localhost: secure cookies are not required for a local test.
   const env = { ...process.env, NODE_ENV: "production", COOKIE_SECURE: "false", PORT: process.env.PORT ?? "3000", HOSTNAME: "localhost" };
-  const web = spawn(process.execPath, [webServer], { cwd: path.dirname(webServer), stdio: "inherit", env });
+  const web = spawn(process.execPath, [nextBin, "start", "-p", env.PORT, "-H", env.HOSTNAME], { cwd: path.join(root, "apps/web"), stdio: "inherit", env });
   const worker = spawn(process.execPath, [workerEntry], {
     cwd: path.join(root, "apps/worker"),
     stdio: "inherit",

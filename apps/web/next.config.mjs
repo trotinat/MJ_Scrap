@@ -18,8 +18,9 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
-  outputFileTracingRoot: path.join(dirname, "../.."),
+  // Standalone output (self-contained server) is only used for Docker images:
+  // on Windows it needs symlink rights that a normal user does not have.
+  ...(process.env.NEXT_STANDALONE === "1" ? { output: "standalone", outputFileTracingRoot: path.join(dirname, "../..") } : {}),
   transpilePackages: ["@mdw/shared", "@mdw/database", "@mdw/notifications", "@mdw/scoring"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,

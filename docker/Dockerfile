@@ -23,7 +23,7 @@ COPY packages/notifications/package.json packages/notifications/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm --filter @mdw/web build \
+RUN NEXT_STANDALONE=1 pnpm --filter @mdw/web build \
  && pnpm --filter @mdw/worker build \
  && pnpm --filter @mdw/worker deploy --prod --legacy /out/worker
 
