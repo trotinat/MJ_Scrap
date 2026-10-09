@@ -54,6 +54,17 @@ Guide complet : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) ·
 Telegram : [docs/TELEGRAM.md](docs/TELEGRAM.md) ·
 Règles métier et exploitation : [docs/OPERATIONS.md](docs/OPERATIONS.md)
 
+## Tester sur votre ordinateur (Docker Desktop)
+
+```bash
+git clone https://github.com/trotinat/MJ_Scrap.git && cd MJ_Scrap
+cp .env.example .env    # DOMAIN=localhost, mots de passe, ADMIN_EMAIL / ADMIN_PASSWORD, Telegram (facultatif)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+docker compose run --rm migrate node dist/cli.js probe     # test réel du scraper
+```
+
+Ouvrez http://localhost:3000. Arrêt : `docker compose down` (les données restent dans le volume).
+
 ## Développement
 
 Prérequis : Node 22, pnpm 10, PostgreSQL 16.
