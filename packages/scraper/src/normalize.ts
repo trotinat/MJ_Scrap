@@ -15,6 +15,8 @@ export const KNOWN_BRANDS = [
   "Marshall", "Sennheiser", "Epson", "Brother", "Kingston", "SanDisk", "Western Digital", "Seagate", "Lexar",
   "Nintendo", "PlayStation", "Xbox", "Razer", "Corsair", "SteelSeries", "HyperX", "Redragon", "Michelin", "Bosch Car",
   "Valeo", "Nivea", "Labello", "L'Oréal", "Garnier", "Secret", "Dove", "Gillette", "Oral-B",
+  "Adidas", "Nike", "Puma", "Reebok", "New Balance", "Asics", "Skechers", "Under Armour", "Fila", "Kappa", "Le Coq Sportif",
+  "Converse", "Vans", "Decathlon", "Kipsta", "Columbia", "The North Face", "Lacoste", "Tommy Hilfiger", "Levi's",
 ];
 
 const BRAND_INDEX = KNOWN_BRANDS.map((b) => ({ brand: b, norm: normalizeText(b) })).sort((a, b) => b.norm.length - a.norm.length);

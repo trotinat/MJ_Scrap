@@ -128,7 +128,7 @@ export function CriterionForm({
       <Card title="Où et quoi chercher">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="Catégories à surveiller (chemins du site)" hint="Choisissez une suggestion ou collez une URL de catégorie Marjane Mall. Les pages promotions des Paramètres sont aussi analysées." error={e["filters.categoryPaths"]}>
+            <Field label="Catégories à surveiller (chemins du site)" hint="Choisissez une suggestion ou collez une URL Marjane Mall, filtres compris (pointure, genre, livraison express…). Une URL filtrée est toujours ouverte dans le navigateur headless, car le site applique ces filtres en JavaScript." error={e["filters.categoryPaths"]}>
               <TagInput
                 value={f.categoryPaths}
                 onChange={(v) => setF({ categoryPaths: v })}

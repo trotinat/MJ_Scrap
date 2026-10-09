@@ -30,17 +30,30 @@ export const specRuleSchema = z.object({
 export type SpecRule = z.infer<typeof specRuleSchema>;
 
 /** Category / listing path on marjanemall.ma, e.g. "/tv-son-photo/tv-home-cinema/televiseur". */
+/**
+ * A listing on marjanemall.ma: a path, optionally with the site's own filter
+ * query string (e.g. "/boutique-officielle/adidas?maas_46800=42&maas_28003=Homme").
+ * Full URLs are accepted and reduced to path + query; the host is always fixed.
+ */
 export const sitePathSchema = z
   .string()
   .trim()
-  .transform((s) => s.replace(/^https?:\/\/(www\.)?marjanemall\.ma/i, ""))
+  .transform((s) => s.replace(/^https?:\/\/(www\.)?marjanemall\.ma/i, "").replace(/#.*$/, "").replace(/[?&]+$/, ""))
   .pipe(
     z
       .string()
-      .regex(/^\/[a-z0-9][a-z0-9\-/]*$/i, "Chemin invalide (ex. /tv-son-photo/tv-home-cinema/televiseur)")
-      .max(200)
+      .regex(
+        /^\/[a-z0-9][a-z0-9\-/]*(\?[A-Za-z0-9_\-.,=&%+]+)?$/i,
+        "Chemin invalide (ex. /tv-son-photo/tv-home-cinema/televiseur ou une URL Marjane Mall avec ses filtres)",
+      )
+      .max(500)
       .refine((p) => !p.includes(".."), "Chemin invalide"),
   );
+
+/** True when the listing path carries site filters (only applied by the page's JavaScript). */
+export function hasListingFilters(path: string): boolean {
+  return path.includes("?");
+}
 
 const stringList = (max = 30, maxLen = 80) =>
   z

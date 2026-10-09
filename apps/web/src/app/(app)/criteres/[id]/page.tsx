@@ -47,7 +47,20 @@ export default async function CriterionDetailPage({ params }: { params: Promise<
   const mad = (v: number | null) => (v === null ? "—" : formatMad(madToCents(v)));
 
   const rows: [string, React.ReactNode][] = [
-    ["Catégories", <List key="cat" values={f.categoryPaths} />],
+    [
+      "Catégories et listes filtrées",
+      f.categoryPaths.length ? (
+        <ul key="cat" className="space-y-1">
+          {f.categoryPaths.map((p) => (
+            <li key={p} className="break-all rounded-md bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700">
+              {p}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <span key="cat" className="text-slate-400">—</span>
+      ),
+    ],
     ["Mots-clés", <List key="kw" values={f.keywords} />],
     ["Synonymes", <List key="alt" values={f.altKeywords} />],
     ["Référence", f.modelRef ?? "—"],

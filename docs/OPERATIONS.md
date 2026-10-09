@@ -31,6 +31,22 @@
 8. Statut (`réussie`, `partielle`, `échec`, `ignorée`, `interrompue`), durée,
    compteurs et erreurs détaillées sont enregistrés.
 
+## Listes filtrées (URL avec filtres du site)
+
+Un critère peut surveiller une URL Marjane Mall avec ses filtres, par exemple
+`/boutique-officielle/adidas?maas_46800=42&maas_28003=Homme&m_shipping_express=1`
+(pointure 42, Homme, livraison express). Le site n'applique ces filtres qu'en
+JavaScript : le HTML serveur de la même URL liste des produits non filtrés
+(« Notre sélection » : sac enfant, chaussettes, modèles femme…). Une URL
+filtrée est donc **toujours** ouverte dans Chromium.
+
+Ajoutez quand même au critère des filtres obligatoires qui reproduisent
+l'intention (marque imposée, mots-clés, caractéristiques exclues comme
+« enfants », « femme » ou « W » pour les modèles femme), car la pointure ou
+le genre ne figurent pas toujours dans le titre et ne peuvent pas être
+vérifiés produit par produit. Les mots de 1 ou 2 lettres (« W », « M »)
+doivent correspondre à un mot entier.
+
 ## Produits, offres et variantes
 
 - **Offre** = une fiche `/p/…` (un vendeur, une variante). Clé : l'identifiant

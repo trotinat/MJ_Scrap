@@ -23,13 +23,14 @@ export function tokens(input: string): string[] {
 /**
  * True when every token of `phrase` appears in `haystack` as the start of a
  * word ("televiseur" matches "televiseurs", "4k" matches "4k").
- * An empty phrase never matches.
+ * Tokens of one or two characters must match a whole word, so "W" (women's
+ * models such as "GALAXY 8 W") does not match "white". An empty phrase never matches.
  */
 export function phraseMatches(haystack: string, phrase: string): boolean {
   const phraseTokens = tokens(phrase);
   if (phraseTokens.length === 0) return false;
   const words = tokens(haystack);
-  return phraseTokens.every((t) => words.some((w) => w.startsWith(t)));
+  return phraseTokens.every((t) => words.some((w) => (t.length <= 2 ? w === t : w.startsWith(t))));
 }
 
 /** True when any phrase matches. */

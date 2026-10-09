@@ -5,7 +5,7 @@ collecte deux fois par jour (09:00 et 18:00, heure du Maroc), historique des
 prix, correspondance avec vos critères de recherche, classement des offres et
 alertes Telegram. Interface en français, montants en dirhams (MAD).
 
-> **État de validation** — tout le code est testé (105 tests unitaires et
+> **État de validation** — tout le code est testé (110 tests unitaires et
 > d'intégration sur PostgreSQL, parcours de bout en bout de l'interface).
 > L'extraction **en direct** sur marjanemall.ma n'a pas pu être vérifiée depuis
 > l'environnement de développement (accès réseau refusé) : lancez

@@ -1,4 +1,4 @@
-import type { ListingItem, ProductDetail } from "@mdw/shared";
+import { hasListingFilters, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { HttpError, PoliteFetcher, type FetcherOptions } from "./http";
 import { ListingRenderer } from "./browser";
 import { parseListingHtml } from "./parse/listing";
@@ -61,7 +61,11 @@ export class MarjaneAdapter implements SiteAdapter {
 
   async discover(path: string, maxPages: number): Promise<ListingResult> {
     const url = siteUrl(path);
-    if (this.opts.renderMode !== "always") {
+    // Filter parameters (size, gender, express delivery, sort…) are applied by
+    // the page's JavaScript only: the server HTML of a filtered URL lists
+    // unfiltered "Notre sélection" products. Such listings are always rendered.
+    const mustRender = hasListingFilters(path) && this.opts.renderMode !== "never";
+    if (this.opts.renderMode !== "always" && !mustRender) {
       const res = await this.fetcher.get(url);
       if (res.status === 404 || res.status === 410) throw new HttpError(`Page introuvable (HTTP ${res.status})`, res.status, url);
       if (res.status >= 400) throw new HttpError(`HTTP ${res.status}`, res.status, url);
@@ -72,7 +76,8 @@ export class MarjaneAdapter implements SiteAdapter {
     }
     // Robots check also applies to rendered navigation.
     await this.fetcher.loadRobots().then((r) => {
-      if (!r.isAllowed(new URL(url).pathname)) throw new HttpError("Interdit par robots.txt", 0, url);
+      const u = new URL(url);
+      if (!r.isAllowed(u.pathname + u.search)) throw new HttpError("Interdit par robots.txt", 0, url);
     });
     const html = await this.getRenderer(maxPages).render(url);
     return { path, items: parseListingHtml(html, path), method: "browser", pagesLoaded: maxPages };

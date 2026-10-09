@@ -255,3 +255,28 @@ describe("MarjaneAdapter (HTTP mode, fixtures)", () => {
     expect(await adapter.fetchProduct(res.items[0]!.url)).toEqual({ kind: "gone", status: 404 });
   });
 });
+
+describe("filtered listing URLs", () => {
+  it("are always rendered in the browser (server HTML ignores the filters)", async () => {
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /api/\nDisallow: /*SID=\n");
+      return new Response(fixture("listing-tv.html"), { status: 200 });
+    }) as typeof fetch;
+    const adapter = new MarjaneAdapter({
+      userAgent: "test", minDelayMs: 0, timeoutMs: 1000, maxRetries: 0, respectRobots: true,
+      renderMode: "auto", renderTimeoutMs: 1000, fetchImpl, sleep: async () => undefined,
+    });
+    const rendered: string[] = [];
+    (adapter as unknown as { renderer: unknown }).renderer = {
+      render: async (u: string) => (rendered.push(u), fixture("listing-tv.html")),
+      close: async () => undefined,
+    };
+    const path = "/boutique-officielle/adidas?maas_46800=42&maas_28003=Homme";
+    const res = await adapter.discover(path, 2);
+    expect(res.method).toBe("browser");
+    expect(rendered).toEqual([`https://www.marjanemall.ma${path}`]);
+    const plain = await adapter.discover("/tv-son-photo", 2);
+    expect(plain.method).toBe("http");
+  });
+});
