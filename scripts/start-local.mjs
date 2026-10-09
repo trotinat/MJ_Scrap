@@ -7,12 +7,15 @@
  * 1. crée .env s'il n'existe pas (avec un mot de passe administrateur généré) ;
  * 2. démarre un PostgreSQL embarqué (données dans ./.localdb) ;
  * 3. applique les migrations et crée l'administrateur ;
- * 4. lance le tableau de bord (http://localhost:3000) et le worker.
+ * 4. lance le tableau de bord (http://localhost:3000) et le worker :
+ *    - mode développement par défaut ;
+ *    - `--prod` (pnpm start:prod) : version compilée et optimisée, recompilée
+ *      seulement quand le code change.
  * Ctrl+C arrête tout proprement.
  */
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import EmbeddedPostgres from "embedded-postgres";
@@ -64,9 +67,19 @@ const run = (args) =>
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`pnpm ${args.join(" ")} : code ${code}`))));
   });
 
-let dev = null;
+const PROD = process.argv.includes("--prod");
+const children = [];
+let shuttingDown = false;
 const shutdown = async (code = 0) => {
-  if (dev && !dev.killed) dev.kill("SIGINT");
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const running = children.filter((c) => c.exitCode === null);
+  for (const c of running) c.kill("SIGINT");
+  // Let the web app and worker close their database connections before PostgreSQL stops.
+  await Promise.race([
+    Promise.all(running.map((c) => new Promise((r) => (c.exitCode !== null ? r() : c.once("exit", r))))),
+    new Promise((r) => setTimeout(r, 15_000)),
+  ]);
   if (pg) {
     console.log("Arrêt de PostgreSQL…");
     await pg.stop().catch(() => undefined);
@@ -83,6 +96,69 @@ try {
   await shutdown(1);
 }
 
-console.log("\nTableau de bord : http://localhost:3000   (Ctrl+C pour tout arrêter)\n");
-dev = spawn("pnpm", ["dev"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
-dev.on("exit", (code) => void shutdown(code ?? 0));
+if (!PROD) {
+  console.log("\nTableau de bord : http://localhost:3000   (Ctrl+C pour tout arrêter)\n");
+  const dev = spawn("pnpm", ["dev"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+  children.push(dev);
+  dev.on("exit", (code) => void shutdown(code ?? 0));
+} else {
+  // Production build: compiled once, rebuilt only when the code changes (git commit).
+  const stampFile = path.join(root, ".localbuild");
+  let commit = "unknown";
+  try {
+    commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root }).toString().trim();
+  } catch {
+    // not a git checkout: rebuild every time
+  }
+  const webServer = path.join(root, "apps/web/.next/standalone/apps/web/server.js");
+  const workerEntry = path.join(root, "apps/worker/dist/index.js");
+  const upToDate =
+    commit !== "unknown" && existsSync(stampFile) && readFileSync(stampFile, "utf8").trim() === commit && existsSync(webServer) && existsSync(workerEntry);
+  if (!upToDate) {
+    console.log("\nCompilation de la version optimisée (quelques minutes, uniquement après une mise à jour)…\n");
+    try {
+      await run(["build"]);
+    } catch (err) {
+      console.error(String(err));
+      await shutdown(1);
+    }
+    if (!existsSync(webServer) || !existsSync(workerEntry)) {
+      console.error("La compilation n'a pas produit les fichiers attendus (apps/web/.next/standalone, apps/worker/dist).");
+      await shutdown(1);
+    }
+    cpSync(path.join(root, "apps/web/.next/static"), path.join(root, "apps/web/.next/standalone/apps/web/.next/static"), { recursive: true });
+    if (commit !== "unknown") writeFileSync(stampFile, commit);
+  } else {
+    console.log("Version optimisée déjà compilée pour ce code : démarrage direct.");
+  }
+
+  // http://localhost: secure cookies are not required for a local test.
+  const env = { ...process.env, NODE_ENV: "production", COOKIE_SECURE: "false", PORT: process.env.PORT ?? "3000", HOSTNAME: "localhost" };
+  const web = spawn(process.execPath, [webServer], { cwd: path.dirname(webServer), stdio: "inherit", env });
+  const worker = spawn(process.execPath, [workerEntry], {
+    cwd: path.join(root, "apps/worker"),
+    stdio: "inherit",
+    env: { ...env, MIGRATIONS_DIR: path.join(root, "packages/database/drizzle") },
+  });
+  children.push(web, worker);
+  web.on("exit", (code) => void shutdown(code ?? 0));
+  worker.on("exit", (code) => void shutdown(code ?? 0));
+  console.log(`\nTableau de bord : http://localhost:${env.PORT}   (Ctrl+C pour tout arrêter)\n`);
+  if (process.env.OPEN_BROWSER === "1") void openWhenReady(`http://localhost:${env.PORT}`);
+}
+
+/** Opens the dashboard in the default browser as soon as it answers. */
+async function openWhenReady(url) {
+  for (let i = 0; i < 120; i++) {
+    try {
+      const res = await fetch(`${url}/api/health`);
+      if (res.ok) break;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const [cmd, args] =
+    process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+  spawn(cmd, args, { stdio: "ignore", detached: true }).unref();
+}

@@ -56,6 +56,10 @@ Règles métier et exploitation : [docs/OPERATIONS.md](docs/OPERATIONS.md)
 
 ## Tester sur votre ordinateur sans Docker (Windows, macOS, Linux)
 
+Sous Windows, le plus simple : double-cliquez sur `scripts/windows/Installer Marjane Deals Watcher.bat`
+(copiez-le sur le Bureau). Il installe, met à jour, compile et démarre la version optimisée.
+
+
 Prérequis : Node.js 22 LTS et Git. **PostgreSQL n'a pas besoin d'être installé** :
 un PostgreSQL embarqué (paquet npm `embedded-postgres`) tourne depuis le dossier
 du projet, sans droits administrateur.
@@ -66,7 +70,8 @@ cd MJ_Scrap
 corepack enable          # active pnpm
 pnpm install
 pnpm setup:browser       # Chromium pour les listes rendues en JavaScript
-pnpm start:local         # base embarquée + migrations + tableau de bord + worker
+pnpm start:local         # base embarquée + migrations + tableau de bord + worker (mode développement)
+pnpm start:prod          # idem, version compilée et optimisée (recompilée seulement après une mise à jour)
 ```
 
 Au premier lancement, `start:local` crée `.env` et affiche l'e-mail et le mot de
