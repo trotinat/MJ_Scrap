@@ -1,0 +1,31 @@
+{
+  "name": "marjane-deals-watcher",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter ./apps/* build",
+    "dev:web": "pnpm --filter @mdw/web dev",
+    "dev:worker": "pnpm --filter @mdw/worker dev",
+    "db:generate": "pnpm --filter @mdw/database generate",
+    "db:migrate": "pnpm --filter @mdw/worker exec tsx src/cli.ts migrate",
+    "admin:create": "pnpm --filter @mdw/worker exec tsx src/cli.ts create-admin",
+    "scrape:now": "pnpm --filter @mdw/worker exec tsx src/cli.ts run-now",
+    "probe": "pnpm --filter @mdw/worker exec tsx src/cli.ts probe",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@mdw/database": "workspace:*",
+    "@mdw/shared": "workspace:*",
+    "@types/node": "^22.15.0",
+    "drizzle-orm": "^0.45.4",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
