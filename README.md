@@ -54,6 +54,37 @@ Guide complet : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) ·
 Telegram : [docs/TELEGRAM.md](docs/TELEGRAM.md) ·
 Règles métier et exploitation : [docs/OPERATIONS.md](docs/OPERATIONS.md)
 
+## Tester sur votre ordinateur sans Docker
+
+Prérequis : Node.js 22 LTS, Git et PostgreSQL 16 (Windows : installeur EDB ; macOS : Postgres.app).
+
+```bash
+# 1. Base de données (une seule fois), avec psql ou pgAdmin :
+#    CREATE USER mdw WITH PASSWORD 'mdw';  CREATE DATABASE mdw OWNER mdw;
+git clone https://github.com/trotinat/MJ_Scrap.git && cd MJ_Scrap
+corepack enable              # active pnpm
+pnpm install
+pnpm setup:browser           # télécharge Chromium pour les listes rendues en JavaScript
+```
+
+Créez un fichier `.env` à la racine du projet :
+
+```env
+DATABASE_URL=postgres://mdw:mdw@localhost:5432/mdw
+ADMIN_EMAIL=vous@exemple.ma
+ADMIN_PASSWORD=un-mot-de-passe-solide
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
+
+```bash
+pnpm db:migrate      # crée les tables et votre compte
+pnpm probe           # test réel du scraper sur Marjane Mall
+pnpm dev             # tableau de bord http://localhost:3000 + worker (collectes 09:00 / 18:00)
+```
+
+Les collectes planifiées ne tournent que tant que `pnpm dev` est lancé (et l'ordinateur allumé).
+
 ## Tester sur votre ordinateur (Docker Desktop)
 
 ```bash

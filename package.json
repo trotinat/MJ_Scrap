@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "pnpm -r --filter ./apps/* build",
+    "dev": "pnpm --parallel --filter @mdw/web --filter @mdw/worker dev",
+    "setup:browser": "pnpm --filter @mdw/worker exec playwright install chromium",
     "dev:web": "pnpm --filter @mdw/web dev",
     "dev:worker": "pnpm --filter @mdw/worker dev",
     "db:generate": "pnpm --filter @mdw/database generate",

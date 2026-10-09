@@ -1,7 +1,12 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Local runs without Docker: read the project-root .env (never overrides real variables).
+const rootEnv = path.join(dirname, "../../.env");
+if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
