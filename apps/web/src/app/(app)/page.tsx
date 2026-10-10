@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BellRing, Plus, RefreshCw, Search, Zap } from "lucide-react";
-import { getDb, listCriteria } from "@mdw/database";
+import { getAppSettings, getDb, listCriteria } from "@mdw/database";
 import { telegramConfigFromEnv } from "@mdw/notifications";
 import { SubmitButton } from "@/components/buttons";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
@@ -50,13 +50,14 @@ function when(d: Date): string {
 }
 
 export default async function HomePage() {
+  const settings = await getAppSettings(getDb());
   const [s, deals, criteria, summaries, flash, week] = await Promise.all([
     dashboardStats(),
     listDeals({ sort: "score", pageSize: 13 }),
     listCriteria(getDb()),
     criteriaSummaries(),
     flashOffers("/ventes-flash", { sort: "discount" }).catch(() => []),
-    weeklyOffers().catch(() => []),
+    weeklyOffers(settings.dealPagePaths).catch(() => []),
   ]);
   const telegramReady = telegramConfigFromEnv() !== null;
   const waiting = (s.notifStats.pending ?? 0) + (s.notifStats.failed ?? 0);

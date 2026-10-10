@@ -36,7 +36,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
   const sort = (SORTS.some((s) => s.value === sp.sort) ? sp.sort : "discount") as FlashSort;
   const isWeek = current === WEEK;
   const crawl = isWeek ? (crawled.length ? crawled.reduce((a, b) => (a.last_success_at > b.last_success_at ? a : b)) : undefined) : crawled.find((c) => c.path === current);
-  const rows = !crawl ? [] : isWeek ? await weeklyOffers({ sort, q: sp.q }) : await flashOffers(current, { sort, q: sp.q });
+  const rows = !crawl ? [] : isWeek ? await weeklyOffers(settings.dealPagePaths, { sort, q: sp.q }) : await flashOffers(current, { sort, q: sp.q });
   const href = (page: string) => `/ventes-flash?page=${encodeURIComponent(page)}${sort !== "discount" ? `&sort=${sort}` : ""}`;
 
   return (

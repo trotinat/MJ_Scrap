@@ -21,14 +21,14 @@ const db = () => getDb();
 
 export async function dashboardStats() {
   const since24h = new Date(Date.now() - 24 * 3600_000);
-  const [[offersRow], [criteriaRow], [newDealsRow], targetRows, dropRows, [lastSuccess], [lastRun], worker, notifStats, recentNotifs] =
+  const [[offersRow], [criteriaRow], newDealsRes, targetRows, dropRows, [lastSuccess], [lastRun], worker, notifStats, recentNotifs] =
     await Promise.all([
       db().select({ n: count() }).from(productOffers).where(inArray(productOffers.status, ["active", "unavailable"])),
       db().select({ n: count() }).from(searchCriteria).where(eq(searchCriteria.enabled, true)),
-      db()
-        .select({ n: count() })
-        .from(dealMatches)
-        .where(and(eq(dealMatches.isMatch, true), gte(dealMatches.firstMatchedAt, since24h))),
+      db().execute<{ n: number }>(sql`
+        select count(*)::int as n from deal_matches m
+        join search_criteria c on c.id = m.criterion_id
+        where m.is_match and c.enabled and m.first_matched_at >= ${since24h}`),
       db().execute<{ n: number }>(sql`
         select count(*)::int as n from deal_matches m
         join search_criteria c on c.id = m.criterion_id
@@ -40,6 +40,7 @@ export async function dashboardStats() {
                  lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
           from price_history ph
           where ph.observed_at > now() - interval '8 days'
+            and exists (select 1 from deal_matches m join search_criteria c on c.id = m.criterion_id where m.offer_id = ph.offer_id and m.is_match and c.enabled)
         ) x where x.observed_at > ${since24h} and x.prev is not null and x.price_cents <= x.prev * 0.95`),
       db()
         .select()
@@ -59,7 +60,7 @@ export async function dashboardStats() {
   return {
     offers: Number(offersRow?.n ?? 0),
     activeCriteria: Number(criteriaRow?.n ?? 0),
-    newDeals24h: Number(newDealsRow?.n ?? 0),
+    newDeals24h: Number(newDealsRes.rows[0]?.n ?? 0),
     targetReached: Number(targetRows.rows[0]?.n ?? 0),
     drops24h: Number(dropRows.rows[0]?.n ?? 0),
     lastSuccess: lastSuccess ?? null,
@@ -424,7 +425,8 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
  * "Cette semaine": the best offers seen on any promotion page during the last
  * 7 days (one row per offer), ranked by advertised discount.
  */
-export async function weeklyOffers(opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+export async function weeklyOffers(paths: string[], opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+  if (paths.length === 0) return [];
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
   const order =
     opts.sort === "price"
@@ -448,6 +450,7 @@ export async function weeklyOffers(opts: { sort?: FlashSort; q?: string } = {}):
       select offer_id, min(first_seen_at) as first_seen_at, max(last_seen_at) as last_seen_at
       from listing_appearances
       where last_seen_at >= now() - interval '7 days'
+        and listing_path in (${sql.join(paths.map((x) => sql`${x}`), sql`, `)})
       group by offer_id
     ) w
     join product_offers o on o.id = w.offer_id
