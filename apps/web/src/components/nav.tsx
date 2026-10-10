@@ -9,7 +9,7 @@ import { cx } from "./ui";
 /** What people come for, in the order they use it. */
 const PRIMARY = [
   { href: "/", label: "Bons plans", icon: Home },
-  { href: "/ventes-flash", label: "Ventes flash", icon: Zap },
+  { href: "/ventes-flash", label: "Offres", icon: Zap },
   { href: "/criteres", label: "Recherches", icon: Search },
   { href: "/notifications", label: "Alertes", icon: Bell },
 ];

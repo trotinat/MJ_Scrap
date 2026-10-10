@@ -13,6 +13,7 @@ import {
   saveAppSettings,
   seedRecommendedCriteria,
   upgradeRecommendedCriteria,
+  upgradeDealPages,
   setUserPassword,
 } from "@mdw/database";
 import { configureProxyFromEnv, MarjaneAdapter, parseListingHtml, parseProductPage } from "@mdw/scraper";
@@ -65,6 +66,7 @@ async function main() {
         const added = await seedRecommendedCriteria(db, { once: true });
         if (added) logger.info({ added }, "critères recommandés ajoutés");
         if (await upgradeRecommendedCriteria(db)) logger.info("critère Adidas Homme : exclusions enfants complétées");
+        if (await upgradeDealPages(db)) logger.info("pages de deals ajoutées (deals de l'automne, moins de 200 DH)");
         if ((await countUsers(db)) === 0) {
           if (config.ADMIN_EMAIL && config.ADMIN_PASSWORD) {
             await createUser(db, config.ADMIN_EMAIL, config.ADMIN_PASSWORD);

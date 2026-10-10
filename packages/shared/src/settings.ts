@@ -26,7 +26,7 @@ export type ScoreThresholds = z.infer<typeof scoreThresholdsSchema>;
 
 export const appSettingsSchema = z.object({
   /** Promotion pages scanned on every run in addition to criteria categories. */
-  dealPagePaths: z.array(sitePathSchema).max(20).default(["/ventes-flash", "/destockage"]),
+  dealPagePaths: z.array(sitePathSchema).max(20).default(["/ventes-flash", "/destockage", "/les-deals-de-l-automne", "/tout-a-moins-de-200-dh"]),
   maxListingPagesPerPath: z.number().int().min(1).max(20).default(4),
   maxDetailFetchesPerRun: z.number().int().min(0).max(1000).default(40),
   requestDelayMs: z.number().int().min(1000).max(60000).default(3000),

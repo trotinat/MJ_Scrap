@@ -4,13 +4,21 @@ import { getAppSettings, getDb } from "@mdw/database";
 import { SubmitButton } from "@/components/buttons";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
-import { flashOffers, flashPages, type FlashSort } from "@/lib/queries";
+import { flashOffers, flashPages, weeklyOffers, type FlashSort } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
 import { requestRunAction } from "../collectes/actions";
 
-export const metadata = { title: "Ventes flash" };
+export const metadata = { title: "Offres" };
 
-const PAGE_LABELS: Record<string, string> = { "/ventes-flash": "Ventes flash", "/destockage": "Déstockage" };
+const WEEK = "semaine";
+
+const PAGE_LABELS: Record<string, string> = {
+  [WEEK]: "Cette semaine",
+  "/ventes-flash": "Ventes flash",
+  "/destockage": "Déstockage",
+  "/les-deals-de-l-automne": "Deals de l'automne",
+  "/tout-a-moins-de-200-dh": "Moins de 200 DH",
+};
 const label = (p: string) => PAGE_LABELS[p] ?? p;
 const SORTS: { value: FlashSort; label: string }[] = [
   { value: "discount", label: "Plus forte remise annoncée" },
@@ -23,18 +31,19 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const [crawled, settings] = await Promise.all([flashPages(), getAppSettings(getDb())]);
   // Configured promotion pages first, then any other crawled page (e.g. one used by a criterion).
-  const tabs = [...new Set([...settings.dealPagePaths, ...crawled.filter((c) => PAGE_LABELS[c.path]).map((c) => c.path)])];
-  const current = sp.page && tabs.includes(sp.page) ? sp.page : (tabs[0] ?? "/ventes-flash");
+  const tabs = [WEEK, ...new Set([...settings.dealPagePaths, ...crawled.filter((c) => PAGE_LABELS[c.path]).map((c) => c.path)])];
+  const current = sp.page && tabs.includes(sp.page) ? sp.page : WEEK;
   const sort = (SORTS.some((s) => s.value === sp.sort) ? sp.sort : "discount") as FlashSort;
-  const crawl = crawled.find((c) => c.path === current);
-  const rows = crawl ? await flashOffers(current, { sort, q: sp.q }) : [];
+  const isWeek = current === WEEK;
+  const crawl = isWeek ? (crawled.length ? crawled.reduce((a, b) => (a.last_success_at > b.last_success_at ? a : b)) : undefined) : crawled.find((c) => c.path === current);
+  const rows = !crawl ? [] : isWeek ? await weeklyOffers({ sort, q: sp.q }) : await flashOffers(current, { sort, q: sp.q });
   const href = (page: string) => `/ventes-flash?page=${encodeURIComponent(page)}${sort !== "discount" ? `&sort=${sort}` : ""}`;
 
   return (
     <>
       <PageHeader
-        title="Ventes flash"
-        description="Toutes les offres affichées sur les pages promo de Marjane Mall, même hors de vos recherches."
+        title="Offres du moment"
+        description={isWeek ? "Les meilleures remises vues ces 7 derniers jours sur les pages promo de Marjane Mall." : "Tout ce qu'affiche cette page promo de Marjane Mall, même hors de vos recherches."}
         actions={
           <form action={requestRunAction}>
             <SubmitButton variant="secondary" pendingLabel="Demandé…">

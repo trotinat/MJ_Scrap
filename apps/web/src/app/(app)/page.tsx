@@ -5,7 +5,7 @@ import { telegramConfigFromEnv } from "@mdw/notifications";
 import { SubmitButton } from "@/components/buttons";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
 import { btn, EmptyState } from "@/components/ui";
-import { criteriaSummaries, dashboardStats, flashOffers, listDeals, type DealRow, type FlashRow } from "@/lib/queries";
+import { criteriaSummaries, dashboardStats, flashOffers, weeklyOffers, listDeals, type DealRow, type FlashRow } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
 import { requestRunAction } from "./collectes/actions";
 
@@ -50,12 +50,13 @@ function when(d: Date): string {
 }
 
 export default async function HomePage() {
-  const [s, deals, criteria, summaries, flash] = await Promise.all([
+  const [s, deals, criteria, summaries, flash, week] = await Promise.all([
     dashboardStats(),
     listDeals({ sort: "score", pageSize: 13 }),
     listCriteria(getDb()),
     criteriaSummaries(),
     flashOffers("/ventes-flash", { sort: "discount" }).catch(() => []),
+    weeklyOffers().catch(() => []),
   ]);
   const telegramReady = telegramConfigFromEnv() !== null;
   const waiting = (s.notifStats.pending ?? 0) + (s.notifStats.failed ?? 0);
@@ -102,13 +103,31 @@ export default async function HomePage() {
         </Link>
       )}
 
+      {week.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <h2 className="font-display text-[1.75rem] font-extrabold leading-none tracking-tight sm:text-[2.2rem]">Deals de la semaine</h2>
+            <Link href="/ventes-flash" className={btn.ghost}>
+              Tout voir
+            </Link>
+          </div>
+          <div className={dealGrid}>
+            {week.slice(0, 8).map((r) => (
+              <DealCard key={r.offer_id} d={fromFlash(r)} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {active.length === 0 ? (
-        <EmptyState icon={Search} title="Dites-nous ce que vous cherchez">
-          <p>Collez un lien Marjane Mall ou partez d'une recherche recommandée : les bons plans apparaîtront ici.</p>
-          <Link href="/criteres" className={`${btn.primary} mt-4`}>
-            <Plus className="h-4 w-4" /> Créer ma première recherche
-          </Link>
-        </EmptyState>
+        <Link href="/criteres" className="mb-6 flex items-center gap-3 rounded-2xl border border-tag-deep/40 bg-tag-soft p-4 hover:border-ink-mute">
+          <Search className="h-6 w-6 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block font-display font-semibold">Recevez une alerte pour ce que vous cherchez</span>
+            <span className="block text-sm text-ink-soft">Collez un lien Marjane Mall ou choisissez une recherche toute prête.</span>
+          </span>
+          <span className="rounded-full bg-ink px-3 py-1.5 text-sm font-semibold text-white">Créer</span>
+        </Link>
       ) : (
         <>
           {/* The memorable moment: today's best deal, large */}

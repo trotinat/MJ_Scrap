@@ -419,3 +419,48 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
     limit 300`);
   return rows.rows;
 }
+
+/**
+ * "Cette semaine": the best offers seen on any promotion page during the last
+ * 7 days (one row per offer), ranked by advertised discount.
+ */
+export async function weeklyOffers(opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+  const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
+  const order =
+    opts.sort === "price"
+      ? sql`o.current_price_cents asc`
+      : opts.sort === "drop"
+        ? sql`(case when prev.price_cents > 0 then (o.current_price_cents - prev.price_cents)::numeric / prev.price_cents end) asc nulls last`
+        : opts.sort === "new"
+          ? sql`w.first_seen_at desc`
+          : sql`o.advertised_discount_pct desc nulls last`;
+  const rows = await db().execute<FlashRow>(sql`
+    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, o.seller,
+           o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
+           prev.price_cents as previous_price_cents, o.min_price_cents,
+           w.first_seen_at, w.last_seen_at,
+           coalesce((
+             select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
+             from deal_matches m join search_criteria c on c.id = m.criterion_id
+             where m.offer_id = o.id and m.is_match and c.enabled
+           ), '[]'::json) as matches
+    from (
+      select offer_id, min(first_seen_at) as first_seen_at, max(last_seen_at) as last_seen_at
+      from listing_appearances
+      where last_seen_at >= now() - interval '7 days'
+      group by offer_id
+    ) w
+    join product_offers o on o.id = w.offer_id
+    join products p on p.id = o.product_id
+    left join lateral (
+      select ph.price_cents from price_history ph
+      where ph.offer_id = o.id
+      order by ph.observed_at desc, ph.id desc offset 1 limit 1
+    ) prev on true
+    where o.status = 'active'
+      and (o.advertised_discount_pct >= 20 or (prev.price_cents > o.current_price_cents))
+      ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
+    order by ${order}, o.title
+    limit 60`);
+  return rows.rows;
+}
