@@ -110,7 +110,7 @@ function fromListing(i: ListingItem, categoryPath: string | null): OfferObservat
     sourceId: i.sourceId,
     url: i.url,
     title: i.title,
-    brand: detectBrand(i.title),
+    brand: detectBrand(i.title) ?? i.brand ?? null,
     modelRef: extractModelRef(i.title),
     imageUrl: i.imageUrl,
     priceCents: i.priceCents!,
@@ -428,7 +428,12 @@ async function collect(
 
   for (const { item, categoryPath, seenOn } of candidates) {
     let obs: OfferObservation = { ...fromListing(item, categoryPath), listingPaths: [...seenOn] };
-    if (budget > 0) {
+    // The listing data already holds exact prices: a product page is only
+    // requested when a criterion needs technical specs (size, RAM, 4K…).
+    const needsSpecs = criteria.some(
+      (c) => (c.filters.mandatorySpecs.length > 0 || c.filters.preferredSpecs.length > 0) && couldMatch(item, c, [...seenOn]),
+    );
+    if (budget > 0 && needsSpecs) {
       budget--;
       stats.detailFetches!++;
       let r: Awaited<ReturnType<typeof adapter.fetchProduct>>;

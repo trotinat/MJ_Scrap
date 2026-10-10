@@ -257,7 +257,7 @@ describe("MarjaneAdapter (HTTP mode, fixtures)", () => {
 });
 
 describe("filtered listing URLs", () => {
-  it("are always rendered in the browser (server HTML ignores the filters)", async () => {
+  it("are read with one plain request; the browser is only a last resort for empty pages", async () => {
     const fetchImpl = (async (input: string | URL | Request) => {
       const url = String(input);
       if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /api/\nDisallow: /*SID=\n");
@@ -274,8 +274,9 @@ describe("filtered listing URLs", () => {
     };
     const path = "/boutique-officielle/adidas?maas_46800=42&maas_28003=Homme";
     const res = await adapter.discover(path, 2);
-    expect(res.method).toBe("browser");
-    expect(rendered).toEqual([`https://www.marjanemall.ma${path}`]);
+    expect(res.method).toBe("http");
+    expect(res.items.length).toBeGreaterThan(0);
+    expect(rendered).toEqual([]);
     const plain = await adapter.discover("/tv-son-photo", 2);
     expect(plain.method).toBe("http");
   });

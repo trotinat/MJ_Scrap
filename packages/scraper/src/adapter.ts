@@ -1,7 +1,8 @@
-import { hasListingFilters, type ListingItem, type ProductDetail } from "@mdw/shared";
+import type { ListingItem, ProductDetail } from "@mdw/shared";
 import { HttpError, PoliteFetcher, type FetcherOptions } from "./http";
 import { ListingRenderer } from "./browser";
 import { parseListingHtml } from "./parse/listing";
+import { parseEmbeddedProducts } from "./parse/embedded";
 import { parseProductPage, ProductParseError } from "./parse/product";
 import { siteUrl } from "./url";
 
@@ -61,26 +62,26 @@ export class MarjaneAdapter implements SiteAdapter {
 
   async discover(path: string, maxPages: number): Promise<ListingResult> {
     const url = siteUrl(path);
-    // Filter parameters (size, gender, express delivery, sort…) are applied by
-    // the page's JavaScript only: the server HTML of a filtered URL lists
-    // unfiltered "Notre sélection" products. Such listings are always rendered.
-    const mustRender = hasListingFilters(path) && this.opts.renderMode !== "never";
-    if (this.opts.renderMode !== "always" && !mustRender) {
+    // One plain request per listing. The products are read from the page data
+    // the server embeds (exact JSON values); the visible-text parser is only a
+    // fallback. URL filters (size, gender…) are not applied by the server: the
+    // criterion's own filters do that work afterwards.
+    if (this.opts.renderMode !== "always") {
       const res = await this.fetcher.get(url);
       if (res.status === 404 || res.status === 410) throw new HttpError(`Page introuvable (HTTP ${res.status})`, res.status, url);
       if (res.status >= 400) throw new HttpError(`HTTP ${res.status}`, res.status, url);
-      const items = parseListingHtml(res.body, path);
+      const items = mergeItems(parseEmbeddedProducts(res.body, path), parseListingHtml(res.body, path));
       if (items.length > 0 || this.opts.renderMode === "never") {
         return { path, items, method: "http", pagesLoaded: 1 };
       }
     }
-    // Robots check also applies to rendered navigation.
+    // Last resort for a page whose server response holds no product at all.
     await this.fetcher.loadRobots().then((r) => {
       const u = new URL(url);
       if (!r.isAllowed(u.pathname + u.search)) throw new HttpError("Interdit par robots.txt", 0, url);
     });
     const html = await this.getRenderer(maxPages).render(url);
-    return { path, items: parseListingHtml(html, path), method: "browser", pagesLoaded: maxPages };
+    return { path, items: mergeItems(parseEmbeddedProducts(html, path), parseListingHtml(html, path)), method: "browser", pagesLoaded: maxPages };
   }
 
   async fetchProduct(url: string): Promise<DetailResult> {
@@ -118,4 +119,15 @@ export class MarjaneAdapter implements SiteAdapter {
   async close(): Promise<void> {
     await this.renderer?.close();
   }
+}
+
+/** Page-data items first (exact values); text-parsed cards only fill gaps. */
+function mergeItems(primary: ListingItem[], fallback: ListingItem[]): ListingItem[] {
+  const out = new Map(primary.map((i) => [i.url, i]));
+  for (const i of fallback) {
+    const p = out.get(i.url);
+    if (!p) out.set(i.url, i);
+    else if (!p.imageUrl && i.imageUrl) p.imageUrl = i.imageUrl;
+  }
+  return [...out.values()];
 }

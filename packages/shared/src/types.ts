@@ -14,6 +14,10 @@ export interface ListingItem {
   seller: string | null;
   reviewCount: number | null;
   rating: number | null;
+  /** Brand given by the site's own data, when available. */
+  brand?: string | null;
+  /** "Livraison rapide" flag from the site's data, when available. */
+  expressDelivery?: boolean | null;
   /** Listing path where the card was seen (used as category scope). */
   listingPath: string;
 }

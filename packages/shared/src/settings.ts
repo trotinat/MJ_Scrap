@@ -28,7 +28,7 @@ export const appSettingsSchema = z.object({
   /** Promotion pages scanned on every run in addition to criteria categories. */
   dealPagePaths: z.array(sitePathSchema).max(20).default(["/ventes-flash", "/destockage"]),
   maxListingPagesPerPath: z.number().int().min(1).max(20).default(4),
-  maxDetailFetchesPerRun: z.number().int().min(0).max(1000).default(150),
+  maxDetailFetchesPerRun: z.number().int().min(0).max(1000).default(40),
   requestDelayMs: z.number().int().min(1000).max(60000).default(3000),
   /** After this many consecutive successful runs without seeing an offer, it is marked "missing". */
   missingAfterRuns: z.number().int().min(1).max(30).default(3),
