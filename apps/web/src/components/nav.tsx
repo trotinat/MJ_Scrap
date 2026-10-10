@@ -31,7 +31,7 @@ const LINKS = [
   { href: "/admin", label: "Administration et santé", icon: ShieldCheck },
 ];
 
-export function Nav({ email, logout }: { email: string; logout: () => Promise<void> }) {
+export function Nav({ email, logout }: { email: string; logout: (() => Promise<void>) | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -61,11 +61,15 @@ export function Nav({ email, logout }: { email: string; logout: () => Promise<vo
       <p className="truncate px-3 text-xs text-slate-500" title={email}>
         {email}
       </p>
-      <form action={logout}>
-        <button type="submit" className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100">
-          Se déconnecter
-        </button>
-      </form>
+      {logout ? (
+        <form action={logout}>
+          <button type="submit" className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100">
+            Se déconnecter
+          </button>
+        </form>
+      ) : (
+        <p className="px-3 pt-1 text-xs text-slate-400">Accès local sans connexion</p>
+      )}
     </div>
   );
 

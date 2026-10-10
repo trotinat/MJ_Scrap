@@ -21,6 +21,8 @@ const nextConfig = {
   // Standalone output (self-contained server) is only used for Docker images:
   // on Windows it needs symlink rights that a normal user does not have.
   ...(process.env.NEXT_STANDALONE === "1" ? { output: "standalone", outputFileTracingRoot: path.join(dirname, "../..") } : {}),
+  // Read by the middleware (compiled at build time). Docker never sets it.
+  env: { AUTH_DISABLED: process.env.AUTH_DISABLED === "true" ? "true" : "false" },
   transpilePackages: ["@mdw/shared", "@mdw/database", "@mdw/notifications", "@mdw/scoring"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,

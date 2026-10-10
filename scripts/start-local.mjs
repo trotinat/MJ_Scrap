@@ -45,6 +45,9 @@ if (!existsSync(envFile)) {
   console.log(`  mot de passe : ${password}\n`);
 }
 process.loadEnvFile(envFile);
+// Local use: no login screen by default (only for http://localhost; set
+// AUTH_DISABLED=false in .env to keep it). Servers (Docker) never set it.
+process.env.AUTH_DISABLED ??= "true";
 const useLocalDb = process.env.DATABASE_URL === localUrl;
 
 let pg = null;
@@ -113,11 +116,13 @@ if (!PROD) {
   } catch {
     // not a git checkout: rebuild every time
   }
+  // The login setting is compiled into the web app: rebuild when it changes.
+  const stamp = `${commit}:auth-disabled=${process.env.AUTH_DISABLED}`;
   const webBuildId = path.join(root, "apps/web/.next/BUILD_ID");
   const nextBin = path.join(root, "apps/web/node_modules/next/dist/bin/next");
   const workerEntry = path.join(root, "apps/worker/dist/index.js");
   const upToDate =
-    commit !== "unknown" && existsSync(stampFile) && readFileSync(stampFile, "utf8").trim() === commit && existsSync(webBuildId) && existsSync(workerEntry);
+    commit !== "unknown" && existsSync(stampFile) && readFileSync(stampFile, "utf8").trim() === stamp && existsSync(webBuildId) && existsSync(workerEntry);
   if (!upToDate) {
     console.log("\nCompilation de la version optimisée (quelques minutes, uniquement après une mise à jour)…\n");
     try {
@@ -130,7 +135,7 @@ if (!PROD) {
       console.error("La compilation n'a pas produit les fichiers attendus (apps/web/.next, apps/worker/dist).");
       await shutdown(1);
     }
-    if (commit !== "unknown") writeFileSync(stampFile, commit);
+    if (commit !== "unknown") writeFileSync(stampFile, stamp);
   } else {
     console.log("Version optimisée déjà compilée pour ce code : démarrage direct.");
   }
