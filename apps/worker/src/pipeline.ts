@@ -262,7 +262,13 @@ async function collect(
       stats.listingPagesFetched! += res.pagesLoaded;
       log.info({ path, method: res.method, cards: res.items.length }, "liste analysée");
       // An empty extraction is treated as a failure, so it can never mark offers as missing.
-      if (res.items.length === 0) await recordError("listing", "Aucun produit extrait de cette page", path);
+      if (res.items.length === 0) {
+        await recordError(
+          "listing",
+          "Aucun produit dans la réponse du site pour cette page (liste chargée par le navigateur). Ses produits restent détectés s'ils apparaissent dans les Ventes flash ou le Déstockage.",
+          path,
+        );
+      }
       else {
         crawledPaths.push(path);
         const crawl = { lastSuccessAt: now(), itemCount: res.items.length, method: res.method };

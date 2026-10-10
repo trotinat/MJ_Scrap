@@ -23,11 +23,11 @@ const envSchema = z.object({
   SCRAPER_USER_AGENT: z
     .string()
     .default("Mozilla/5.0 (compatible; MarjaneDealsWatcher/1.0; usage personnel; +https://github.com/trotinat/MJ_Scrap)"),
-  RENDER_MODE: z.enum(["auto", "never", "always"]).default("auto"),
+  RENDER_MODE: z.enum(["auto", "never", "always"]).default("never"),
   RESPECT_ROBOTS: bool.default("true"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(120000).default(25000),
   RENDER_TIMEOUT_MS: z.coerce.number().int().min(10000).max(180000).default(60000),
-  MAX_RETRIES: z.coerce.number().int().min(0).max(6).default(3),
+  MAX_RETRIES: z.coerce.number().int().min(0).max(6).default(1),
   HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(8081),
   CATCHUP_WINDOW_HOURS: z.coerce.number().min(0).max(24).default(6),
   OUTBOX_INTERVAL_SECONDS: z.coerce.number().int().min(10).max(3600).default(60),
