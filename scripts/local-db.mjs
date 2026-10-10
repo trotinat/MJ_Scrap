@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import EmbeddedPostgres from "embedded-postgres";
+import { ensureUtf8Database, UTF8_INITDB_FLAGS } from "./utf8-db.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = path.join(root, ".localdb");
@@ -23,6 +24,7 @@ const pg = new EmbeddedPostgres({
   password: "mdw",
   port,
   persistent: true,
+  initdbFlags: UTF8_INITDB_FLAGS,
   onLog: () => {},
   onError: (e) => console.error(String(e).trim()),
 });
@@ -32,12 +34,8 @@ if (!existsSync(path.join(dataDir, "PG_VERSION"))) {
   await pg.initialise();
 }
 await pg.start();
-try {
-  await pg.createDatabase("mdw");
-  console.log("Base « mdw » créée.");
-} catch {
-  // already exists
-}
+const legacy = await ensureUtf8Database(pg);
+if (legacy) console.log(`Base convertie en UTF-8 ; lancez « pnpm start:local » pour reprendre comptes et critères depuis « ${legacy} ».`);
 console.log(`PostgreSQL local prêt : postgres://mdw:mdw@localhost:${port}/mdw`);
 console.log("Laissez cette fenêtre ouverte. Ctrl+C pour arrêter.");
 

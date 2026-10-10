@@ -157,10 +157,15 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
   const log = logger.child({ runId, trigger });
   log.info("collecte démarrée");
 
+  // Recording an error must never break the run (e.g. a character the database refuses).
   const recordError = async (stage: string, message: string, url?: string | null, httpStatus?: number | null) => {
-    errors.push(`${stage}: ${message}`);
+    errors.push(`${stage}: ${firstLine(message)}`);
     log.warn({ stage, url, httpStatus, err: message }, "erreur de collecte");
-    await db.insert(scrapingErrors).values({ runId, stage, url: url ?? null, httpStatus: httpStatus ?? null, message: message.slice(0, 2000) });
+    try {
+      await db.insert(scrapingErrors).values({ runId, stage, url: url ? toStorable(url) : null, httpStatus: httpStatus ?? null, message: toStorable(message).slice(0, 2000) });
+    } catch (err) {
+      log.error({ err: (err as Error).message }, "impossible d'enregistrer l'erreur de collecte");
+    }
   };
 
   let status: RunStatus = "success";
@@ -190,7 +195,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
       fatal = err.message;
       await recordError("access", err.message, null, err instanceof AccessBlockedError ? err.status : null);
     } else {
-      fatal = `Erreur inattendue : ${(err as Error).message}`;
+      fatal = `Erreur inattendue : ${firstLine((err as Error).message)}`;
       await recordError("pipeline", (err as Error).stack ?? (err as Error).message);
     }
     status = "failed";
@@ -220,16 +225,14 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
   }
 
   const finished = now();
-  await db
-    .update(scrapingRuns)
-    .set({
-      status,
-      finishedAt: finished,
-      durationMs: finished.getTime() - started.getTime(),
-      stats,
-      errorSummary: fatal ?? (errors.length ? `${errors.length} erreur(s) : ${errors.slice(0, 3).join(" | ")}`.slice(0, 2000) : null),
-    })
-    .where(eq(scrapingRuns.id, runId));
+  const summary = fatal ?? (errors.length ? `${errors.length} erreur(s) : ${errors.slice(0, 3).join(" | ")}` : null);
+  const close = (errorSummary: string | null) =>
+    db
+      .update(scrapingRuns)
+      .set({ status, finishedAt: finished, durationMs: finished.getTime() - started.getTime(), stats, errorSummary })
+      .where(eq(scrapingRuns.id, runId));
+  // A run is always closed, even if its summary cannot be stored as is.
+  await close(summary ? toStorable(summary).slice(0, 2000) : null).catch(() => close("Résumé d'erreur non enregistrable (voir les journaux du worker)."));
   await db.update(workerStatus).set({ currentRunId: null }).where(eq(workerStatus.id, deps.workerId));
   log.info({ status, stats, durationMs: finished.getTime() - started.getTime() }, "collecte terminée");
   return { runId, status, stats };
@@ -507,4 +510,19 @@ async function collect(
     stats.markedMissing = await db.transaction((tx) => applyMissingPolicy(tx, crawledPaths, seenOfferIds, settings.missingAfterRuns, now()));
   }
   return blocked;
+}
+
+/** First line of an error (database errors repeat the whole query and its values). */
+function firstLine(message: string): string {
+  const line = message.split("\n")[0] ?? message;
+  return line.length > 300 ? `${line.slice(0, 300)}…` : line;
+}
+
+/** ASCII equivalents for typographic characters some databases cannot store. */
+function toStorable(text: string): string {
+  return text
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u00a0\u2007\u202f]/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"');
 }

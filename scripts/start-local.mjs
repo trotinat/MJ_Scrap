@@ -19,6 +19,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import EmbeddedPostgres from "embedded-postgres";
+import { copyFromLegacy, ensureUtf8Database, UTF8_INITDB_FLAGS } from "./utf8-db.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const envFile = path.join(root, ".env");
@@ -47,15 +48,16 @@ process.loadEnvFile(envFile);
 const useLocalDb = process.env.DATABASE_URL === localUrl;
 
 let pg = null;
+let legacyDb = null;
 if (useLocalDb) {
   const dataDir = path.join(root, ".localdb");
-  pg = new EmbeddedPostgres({ databaseDir: dataDir, user: "mdw", password: "mdw", port, persistent: true, onLog: () => {} });
+  pg = new EmbeddedPostgres({ databaseDir: dataDir, user: "mdw", password: "mdw", port, persistent: true, initdbFlags: UTF8_INITDB_FLAGS, onLog: () => {} });
   if (!existsSync(path.join(dataDir, "PG_VERSION"))) {
     console.log("Initialisation de PostgreSQL embarqué (première fois, ~30 s)…");
     await pg.initialise();
   }
   await pg.start();
-  await pg.createDatabase("mdw").catch(() => undefined);
+  legacyDb = await ensureUtf8Database(pg);
   console.log(`PostgreSQL local démarré sur le port ${port}.`);
 } else {
   console.log("DATABASE_URL pointe vers une autre base : PostgreSQL embarqué non utilisé.");
@@ -91,6 +93,7 @@ process.on("SIGTERM", () => void shutdown(0));
 
 try {
   await run(["db:migrate"]);
+  if (legacyDb) await copyFromLegacy(pg, legacyDb);
 } catch (err) {
   console.error(String(err));
   await shutdown(1);

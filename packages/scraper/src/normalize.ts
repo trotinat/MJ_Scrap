@@ -114,5 +114,12 @@ export function canonicalProductKey(
 
 /** Cleans a product title for display. */
 export function cleanTitle(title: string): string {
-  return title.replace(/&quot;/g, '"').replace(/\s+/g, " ").trim().slice(0, 500);
+  return title
+    .replace(/&quot;/g, '"')
+    // Typographic hyphens ("USB‑C" with U+2011) become a plain hyphen: easier to
+    // search and storable in any database encoding.
+    .replace(/[\u2010-\u2012\u2212]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
 }

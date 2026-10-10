@@ -55,3 +55,12 @@ describe("page data (Next.js flight) parser", () => {
     expect(parseEmbeddedProducts(asHtml('1:{"url_key":"x-1","name":"Sans prix"}'), "/x")).toEqual([]);
   });
 });
+
+describe("typographic characters", () => {
+  it("turns non-breaking hyphens into plain hyphens (observed: « Câble USB‑A vers USB‑C »)", () => {
+    const body = '1:{"url_key":"cable-usb-a-vers-usb-c-1-m-noir-c43fd31005130418795","name":"Câble USB‑A vers USB‑C 1 m — Noir","price":24,"oldPrice":65}';
+    const [c] = parseEmbeddedProducts(body, "/ventes-flash");
+    expect(c!.title).toBe("Câble USB-A vers USB-C 1 m — Noir");
+    expect(c!.advertisedDiscountPct).toBe(63);
+  });
+});
