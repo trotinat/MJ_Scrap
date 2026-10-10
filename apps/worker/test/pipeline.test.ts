@@ -46,6 +46,8 @@ interface FakeProduct {
 class FakeSite implements SiteAdapter {
   products = new Map<string, FakeProduct>();
   blocked = false;
+  /** Paths refused with HTTP 403 (e.g. a listing that needs browser rendering). */
+  blockedPaths = new Set<string>();
   delayMs = 0;
   requestCount = 0;
   detailCalls = 0;
@@ -59,6 +61,7 @@ class FakeSite implements SiteAdapter {
   async discover(path: string): Promise<ListingResult> {
     if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     if (this.blocked) throw new AccessBlockedError("Accès refusé par le site (HTTP 403)", 403);
+    if (this.blockedPaths.has(path)) throw new AccessBlockedError("Accès refusé lors du rendu (HTTP 403)", 403);
     const items: ListingItem[] = [...this.products.values()]
       .filter((p) => p.path === path || p.alsoOn?.includes(path))
       .map((p) => ({
@@ -267,6 +270,19 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
       .innerJoin(productOffers, eq(productOffers.id, listingAppearances.offerId))
       .where(eq(productOffers.sourceId, "abbb332004180907425"));
     expect(samsung.map((r) => r.path).sort()).toEqual([TV_PATH, "/ventes-flash"].sort());
+  });
+
+  it("a refusal on one listing stops the run but keeps what was read before it", async () => {
+    site.blockedPaths.add(TV_PATH);
+    const r = await runScrape(deps(), "manual");
+    expect(r.status).toBe("partial");
+    expect(r.stats.accessBlocked).toBe(true);
+    // Promotion pages are read first; nothing is requested after the refusal (no product pages).
+    expect(r.stats).toMatchObject({ cardsSeen: 1, detailFetches: 0, newOffers: 1 });
+    expect(site.detailCalls).toBe(0);
+    const [run] = await h.db.select().from(scrapingRuns).where(eq(scrapingRuns.id, r.runId));
+    expect(run!.errorSummary).toMatch(/sans contourner la protection ; 1 fiche\(s\) lues avant le refus/);
+    expect(await h.db.select().from(listingAppearances)).toHaveLength(1);
   });
 
   it("a blocked/failed run keeps existing data and never marks offers missing", async () => {

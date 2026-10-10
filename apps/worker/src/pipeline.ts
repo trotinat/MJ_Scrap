@@ -174,7 +174,15 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
       fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
       status = "skipped";
     } else {
-      await collect(deps, runId, criteria, settings, stats, recordError, now, log);
+      const blocked = await collect(deps, runId, criteria, settings, stats, recordError, now, log);
+      if (blocked) {
+        // The site refused access: nothing more was requested, but what was
+        // legitimately read before the refusal has been stored.
+        stats.accessBlocked = blocked instanceof AccessBlockedError;
+        fatal = `${blocked.message} La collecte s'est arrêtée sans contourner la protection${(stats.cardsSeen ?? 0) > 0 ? ` ; ${stats.cardsSeen} fiche(s) lues avant le refus ont été enregistrées.` : "."}`;
+        await recordError("access", blocked.message, null, blocked instanceof AccessBlockedError ? blocked.status : null);
+        status = (stats.cardsSeen ?? 0) > 0 ? "partial" : "failed";
+      }
     }
   } catch (err) {
     if (err instanceof AccessBlockedError || err instanceof RobotsDisallowedError) {
@@ -236,12 +244,14 @@ async function collect(
   recordError: (stage: string, message: string, url?: string | null, httpStatus?: number | null) => Promise<void>,
   now: () => Date,
   log: Logger,
-): Promise<void> {
+): Promise<AccessBlockedError | RobotsDisallowedError | null> {
   const { db, adapter } = deps;
+  let blocked: AccessBlockedError | RobotsDisallowedError | null = null;
 
   /* 1. Discover listings ---------------------------------------------------- */
   const dealPaths = new Set(settings.dealPagePaths);
-  const paths = [...new Set([...criteria.flatMap((c) => c.filters.categoryPaths), ...settings.dealPagePaths])];
+  // Promotion pages first: they are plain HTML and stay useful even if a later listing is refused.
+  const paths = [...new Set([...settings.dealPagePaths, ...criteria.flatMap((c) => c.filters.categoryPaths)])];
   stats.listingPaths = paths.length;
   const crawledPaths: string[] = [];
   const items = new Map<string, { item: ListingItem; categoryPath: string | null; seenOn: Set<string> }>();
@@ -269,7 +279,15 @@ async function collect(
         }
       }
     } catch (err) {
-      if (err instanceof AccessBlockedError || err instanceof RobotsDisallowedError) throw err;
+      if (err instanceof AccessBlockedError) {
+        // Stop all further requests immediately; keep what was already read.
+        blocked = err;
+        break;
+      }
+      if (err instanceof RobotsDisallowedError) {
+        await recordError("robots", err.message, path);
+        continue;
+      }
       const e = err as Error & { status?: number };
       await recordError("listing", e.message, path, e.status ?? null);
     }
@@ -300,7 +318,8 @@ async function collect(
       ),
     );
 
-  let budget = settings.maxDetailFetchesPerRun;
+  // After a refusal, no product page is requested: listing data only.
+  let budget = blocked ? 0 : settings.maxDetailFetchesPerRun;
   const seenOfferIds = new Set<string>();
 
   /* 3. Fetch details, store, evaluate --------------------------------------- */
@@ -412,7 +431,15 @@ async function collect(
     if (budget > 0) {
       budget--;
       stats.detailFetches!++;
-      const r = await adapter.fetchProduct(item.url);
+      let r: Awaited<ReturnType<typeof adapter.fetchProduct>>;
+      try {
+        r = await adapter.fetchProduct(item.url);
+      } catch (err) {
+        if (!(err instanceof AccessBlockedError)) throw err;
+        blocked = err;
+        budget = 0;
+        r = { kind: "error", message: err.message, status: err.status };
+      }
       if (r.kind === "ok") {
         obs = { ...fromDetail(r.detail, categoryPath, item.listingPath), listingPaths: [...seenOn] };
         if (r.detail.warnings.length) log.debug({ url: item.url, warnings: r.detail.warnings }, "avertissements d'extraction");
@@ -438,7 +465,7 @@ async function collect(
   }
 
   for (const t of tracked) {
-    if (budget <= 0) break;
+    if (budget <= 0 || blocked) break;
     budget--;
     stats.detailFetches!++;
     const r = await adapter.fetchProduct(t.url);
@@ -464,5 +491,9 @@ async function collect(
     const visible = await db.select({ id: productOffers.id }).from(productOffers).where(inArray(productOffers.sourceId, seenSourceIds));
     for (const v of visible) seenOfferIds.add(v.id);
   }
-  stats.markedMissing = await db.transaction((tx) => applyMissingPolicy(tx, crawledPaths, seenOfferIds, settings.missingAfterRuns, now()));
+  // A refused run is incomplete: never use it to mark offers as missing.
+  if (!blocked) {
+    stats.markedMissing = await db.transaction((tx) => applyMissingPolicy(tx, crawledPaths, seenOfferIds, settings.missingAfterRuns, now()));
+  }
+  return blocked;
 }
