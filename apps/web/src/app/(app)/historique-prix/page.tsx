@@ -46,13 +46,13 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
                       <tr key={`${c.offer_id}-${i}`}>
                         <td className="whitespace-nowrap">{formatMoroccoTime(c.observed_at)}</td>
                         <td>
-                          <Link href={`/produits/${c.offer_id}`} className="line-clamp-2 hover:text-brand-700">
+                          <Link href={`/produits/${c.offer_id}`} className="line-clamp-2 hover:text-ink">
                             {c.title}
                           </Link>
                         </td>
                         <td className="whitespace-nowrap">{formatMad(c.prev)}</td>
                         <td className="whitespace-nowrap font-medium">{formatMad(c.price_cents)}</td>
-                        <td className={`whitespace-nowrap font-medium ${pct < 0 ? "text-emerald-700" : "text-rose-600"}`}>{formatPct(pct)}</td>
+                        <td className={`whitespace-nowrap font-medium ${pct < 0 ? "text-proof" : "text-promo"}`}>{formatPct(pct)}</td>
                       </tr>
                     );
                   })}
@@ -78,10 +78,10 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
                 {offers.map((o) => (
                   <tr key={o.id}>
                     <td>
-                      <Link href={`/produits/${o.id}`} className="line-clamp-2 hover:text-brand-700">
+                      <Link href={`/produits/${o.id}`} className="line-clamp-2 hover:text-ink">
                         {o.title}
                       </Link>
-                      {o.status !== "active" && <span className="text-xs text-rose-600">{o.status === "missing" ? "plus listé" : "indisponible"}</span>}
+                      {o.status !== "active" && <span className="text-xs text-promo">{o.status === "missing" ? "plus listé" : "indisponible"}</span>}
                     </td>
                     <td className="whitespace-nowrap">{formatMad(o.current_price_cents)}</td>
                     <td className="whitespace-nowrap">{formatMad(o.min_price_cents)}</td>

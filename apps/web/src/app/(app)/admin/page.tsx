@@ -26,55 +26,55 @@ export default async function AdminPage() {
         <Card title="Base de données">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500">État</dt>
+              <dt className="text-ink-mute">État</dt>
               <dd>{h.dbOk ? <Badge tone="green">Disponible</Badge> : <Badge tone="red">Injoignable</Badge>}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Latence</dt>
+              <dt className="text-ink-mute">Latence</dt>
               <dd>{h.latencyMs} ms</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Taille</dt>
+              <dt className="text-ink-mute">Taille</dt>
               <dd>{h.size || "—"}</dd>
             </div>
-            <p className="pt-2 text-xs text-slate-400">{h.version.split(" on ")[0]}</p>
+            <p className="pt-2 text-xs text-ink-mute">{h.version.split(" on ")[0]}</p>
           </dl>
         </Card>
 
         <Card title="Worker de collecte">
           {h.workers.length === 0 ? (
-            <p className="text-sm text-rose-600">Aucun worker n&apos;a encore signalé sa présence.</p>
+            <p className="text-sm text-promo">Aucun worker n&apos;a encore signalé sa présence.</p>
           ) : (
             h.workers.map((w) => {
               const alive = Date.now() - w.heartbeatAt.getTime() < 2 * 60_000;
               return (
                 <dl key={w.id} className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">{w.id}</dt>
+                    <dt className="text-ink-mute">{w.id}</dt>
                     <dd>{alive ? <Badge tone="green">Actif</Badge> : <Badge tone="red">Silencieux</Badge>}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Dernier signal</dt>
+                    <dt className="text-ink-mute">Dernier signal</dt>
                     <dd>{relativeTime(w.heartbeatAt)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Démarré</dt>
+                    <dt className="text-ink-mute">Démarré</dt>
                     <dd>{formatMoroccoTime(w.startedAt)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Horaires</dt>
+                    <dt className="text-ink-mute">Horaires</dt>
                     <dd>{w.scheduleTimes ?? "—"} (Africa/Casablanca)</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Prochaine collecte</dt>
+                    <dt className="text-ink-mute">Prochaine collecte</dt>
                     <dd>{formatMoroccoTime(w.nextRunAt)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Collecte en cours</dt>
+                    <dt className="text-ink-mute">Collecte en cours</dt>
                     <dd>{w.currentRunId ? <Badge tone="blue">Oui</Badge> : "Non"}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-slate-500">Version</dt>
+                    <dt className="text-ink-mute">Version</dt>
                     <dd>{w.version ?? "—"}</dd>
                   </div>
                 </dl>
@@ -86,15 +86,15 @@ export default async function AdminPage() {
         <Card title="Intégrations">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500">Telegram</dt>
+              <dt className="text-ink-mute">Telegram</dt>
               <dd>{telegram ? <Badge tone="green">Configuré</Badge> : <Badge tone="amber">Non configuré</Badge>}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Alertes</dt>
+              <dt className="text-ink-mute">Alertes</dt>
               <dd>{h.settings?.notificationsEnabled ? "Activées" : "Désactivées"}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Délai entre requêtes</dt>
+              <dt className="text-ink-mute">Délai entre requêtes</dt>
               <dd>{h.settings ? `${h.settings.requestDelayMs / 1000} s` : "—"}</dd>
             </div>
           </dl>
@@ -105,8 +105,8 @@ export default async function AdminPage() {
         <Card title="Volumes">
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {Object.entries(h.counts).map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">{COUNT_LABELS[k] ?? k}</dt>
+              <div key={k} className="rounded-lg bg-paper p-3">
+                <dt className="text-xs text-ink-mute">{COUNT_LABELS[k] ?? k}</dt>
                 <dd className="text-lg font-semibold">{v}</dd>
               </div>
             ))}
@@ -114,7 +114,7 @@ export default async function AdminPage() {
         </Card>
         <Card title="Dernières erreurs de collecte" className="lg:col-span-2">
           {h.recentErrors.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucune erreur enregistrée.</p>
+            <p className="text-sm text-ink-mute">Aucune erreur enregistrée.</p>
           ) : (
             <div className="max-h-96 overflow-auto">
               <table className="data">
@@ -135,7 +135,7 @@ export default async function AdminPage() {
                       </td>
                       <td className="break-words text-xs">
                         {e.message}
-                        {e.url && <span className="block text-slate-400">{e.url}</span>}
+                        {e.url && <span className="block text-ink-mute">{e.url}</span>}
                       </td>
                     </tr>
                   ))}
@@ -147,7 +147,7 @@ export default async function AdminPage() {
       </div>
 
       <Card title="Commandes d'exploitation" className="mt-6">
-        <pre className="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">{`docker compose ps                                   # état des services
+        <pre className="overflow-x-auto rounded-lg bg-ink p-4 text-xs leading-relaxed text-paper">{`docker compose ps                                   # état des services
 docker compose logs -f worker                       # journaux du worker
 docker compose run --rm migrate node dist/cli.js run-now   # collecte immédiate
 docker compose run --rm migrate node dist/cli.js probe     # validation en direct du scraper

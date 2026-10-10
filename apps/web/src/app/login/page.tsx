@@ -24,15 +24,15 @@ export default async function LoginPage() {
           </span>
           <h1 className="text-lg font-semibold">Marjane Deals Watcher</h1>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-paper-line bg-paper-card p-6">
           {users === 0 ? (
-            <div className="text-sm text-slate-600">
-              <p className="font-medium text-slate-900">Aucun administrateur n&apos;existe encore.</p>
+            <div className="text-sm text-ink-soft">
+              <p className="font-medium text-ink">Aucun administrateur n&apos;existe encore.</p>
               <p className="mt-2">
-                Définissez <code className="rounded bg-slate-100 px-1">ADMIN_EMAIL</code> et <code className="rounded bg-slate-100 px-1">ADMIN_PASSWORD</code> dans{" "}
-                <code className="rounded bg-slate-100 px-1">.env</code> puis relancez le service <code className="rounded bg-slate-100 px-1">migrate</code>, ou exécutez :
+                Définissez <code className="rounded bg-paper px-1">ADMIN_EMAIL</code> et <code className="rounded bg-paper px-1">ADMIN_PASSWORD</code> dans{" "}
+                <code className="rounded bg-paper px-1">.env</code> puis relancez le service <code className="rounded bg-paper px-1">migrate</code>, ou exécutez :
               </p>
-              <pre className="mt-2 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">docker compose run --rm migrate node dist/cli.js create-admin vous@exemple.ma</pre>
+              <pre className="mt-2 overflow-x-auto rounded bg-ink p-3 text-xs text-paper">docker compose run --rm migrate node dist/cli.js create-admin vous@exemple.ma</pre>
             </div>
           ) : (
             <LoginForm />

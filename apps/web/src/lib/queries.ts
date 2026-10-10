@@ -103,6 +103,7 @@ export type DealRow = {
   stock_status: string;
   offer_status: string;
   last_success_at: string | null;
+  first_seen_at: string;
   prev_price_cents: number | null;
   min_price_cents: number | null;
   drop_pct: number | null;
@@ -147,7 +148,7 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
   const rows = await db().execute<DealRow>(sql`
     select o.id as offer_id, p.id as product_id, o.title, o.url, p.image_url, p.brand, p.category_path, o.seller,
       o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
-      o.stock_status, o.status as offer_status, o.last_success_at, prev.price_cents as prev_price_cents, o.min_price_cents,
+      o.stock_status, o.status as offer_status, o.last_success_at, o.first_seen_at, prev.price_cents as prev_price_cents, o.min_price_cents,
       case when prev.price_cents > 0 then round(((o.current_price_cents - prev.price_cents)::numeric / prev.price_cents) * 1000) / 10 end::float as drop_pct,
       max(m.score)::int as score,
       json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score, 'dealClass', m.deal_class, 'explanation', m.explanation) order by m.score desc) as matches

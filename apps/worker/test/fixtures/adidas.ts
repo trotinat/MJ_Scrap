@@ -20,6 +20,8 @@ export const OBSERVED: [string, number, number, number][] = [
   ["Adidas-SHOES-GALAXY 8 M CBLACK/BOGOLD/CARBON", 449, 639, 30],
   ["Adidas-SHOES-GALAXY 8 W DISPIN/STTRBL/CLPINK", 449, 639, 30],
   ["Adidas-SHOES-DURAMO RC2 M MUTPRP/FLAAQU/LURABL", 389, 599, 35],
+  // Seen on 10 Oct 2026 and wrongly matched by the first version of the criterion.
+  ["Baskets Adidas Runfalcon 5 EL I pour Fille - Vert", 299, 399, 25],
 ];
 
 /** The same criterion is shipped as the first recommended preset. */

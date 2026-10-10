@@ -40,8 +40,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <ProductImage src={product.imageUrl} alt={offer.title} className="h-56 w-full rounded-lg" />
           <div className="mt-4 space-y-2 text-sm">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-brand-700">{formatMad(offer.currentPriceCents)}</span>
-              {offer.originalPriceCents && <span className="text-slate-400 line-through">{formatMad(offer.originalPriceCents)}</span>}
+              <span className="text-2xl font-bold text-ink">{formatMad(offer.currentPriceCents)}</span>
+              {offer.originalPriceCents && <span className="text-ink-mute line-through">{formatMad(offer.originalPriceCents)}</span>}
             </div>
             <div className="flex flex-wrap gap-1">
               {offer.advertisedDiscountPct !== null && <Badge tone="red">Remise annoncée -{offer.advertisedDiscountPct} %</Badge>}
@@ -51,19 +51,19 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
-                <dt className="text-slate-500">Premier relevé</dt>
+                <dt className="text-ink-mute">Premier relevé</dt>
                 <dd className="font-medium">{formatMoroccoTime(offer.firstSeenAt)}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Dernier relevé réussi</dt>
+                <dt className="text-ink-mute">Dernier relevé réussi</dt>
                 <dd className="font-medium">{formatMoroccoTime(offer.lastSuccessAt)}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Source des données</dt>
+                <dt className="text-ink-mute">Source des données</dt>
                 <dd className="font-medium">{offer.extraction === "listing-card" ? "Fiche liste" : offer.extraction === "json-ld" ? "Page produit (JSON-LD)" : "Page produit"}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Catégorie</dt>
+                <dt className="text-ink-mute">Catégorie</dt>
                 <dd className="font-medium">{product.categoryPath ?? "—"}</dd>
               </div>
             </dl>
@@ -74,25 +74,25 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <PriceChart points={points} />
           {stats && (
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div className="rounded-lg bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Plus bas observé</dt>
+              <div className="rounded-lg bg-paper p-3">
+                <dt className="text-xs text-ink-mute">Plus bas observé</dt>
                 <dd className="font-semibold">{formatMad(stats.minCents)}</dd>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Plus haut observé</dt>
+              <div className="rounded-lg bg-paper p-3">
+                <dt className="text-xs text-ink-mute">Plus haut observé</dt>
                 <dd className="font-semibold">{formatMad(stats.maxCents)}</dd>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Moyenne</dt>
+              <div className="rounded-lg bg-paper p-3">
+                <dt className="text-xs text-ink-mute">Moyenne</dt>
                 <dd className="font-semibold">{formatMad(stats.avgCents)}</dd>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Depuis le début du suivi</dt>
+              <div className="rounded-lg bg-paper p-3">
+                <dt className="text-xs text-ink-mute">Depuis le début du suivi</dt>
                 <dd className="font-semibold">{formatPct(stats.changeSinceFirstPct)}</dd>
               </div>
             </dl>
           )}
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-ink-mute">
             Ces chiffres proviennent uniquement de nos {history.length} relevé(s) depuis le {formatMoroccoTime(offer.firstSeenAt)} ; aucun prix antérieur au début du suivi n&apos;est connu.
           </p>
         </Card>
@@ -101,21 +101,21 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Critères correspondants">
           {matches.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun critère évalué pour ce produit.</p>
+            <p className="text-sm text-ink-mute">Aucun critère évalué pour ce produit.</p>
           ) : (
             <ul className="space-y-4">
               {matches.map(({ match, criterion }) => (
-                <li key={match.id} className="rounded-lg border border-slate-100 p-3">
+                <li key={match.id} className="rounded-lg border border-paper-line p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Link href={`/criteres/${criterion.id}`} className="text-sm font-semibold hover:text-brand-700">
+                    <Link href={`/criteres/${criterion.id}`} className="text-sm font-semibold hover:text-ink">
                       {criterion.name}
                     </Link>
                     {match.isMatch ? <ScoreBadge score={match.score} dealClass={match.dealClass} /> : <Badge tone="red">Ne correspond plus</Badge>}
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">{match.explanation}</p>
+                  <p className="mt-1 text-sm text-ink-soft">{match.explanation}</p>
                   {match.breakdown.length > 0 && (
                     <details className="mt-2 text-xs">
-                      <summary className="cursor-pointer text-slate-500">Détail du score</summary>
+                      <summary className="cursor-pointer text-ink-mute">Détail du score</summary>
                       <table className="data mt-2">
                         <thead>
                           <tr>
@@ -146,7 +146,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
         <Card title="Fiche technique">
           {specs.length === 0 && raw.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucune caractéristique extraite (la page produit n&apos;a peut-être pas encore été analysée).</p>
+            <p className="text-sm text-ink-mute">Aucune caractéristique extraite (la page produit n&apos;a peut-être pas encore été analysée).</p>
           ) : (
             <>
               {specs.length > 0 && (
@@ -162,7 +162,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <tbody>
                   {raw.map(([k, v]) => (
                     <tr key={k}>
-                      <th className="w-1/3 normal-case tracking-normal text-slate-600">{k}</th>
+                      <th className="w-1/3 normal-case tracking-normal text-ink-soft">{k}</th>
                       <td>{v}</td>
                     </tr>
                   ))}
@@ -188,7 +188,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               {siblings.map((s) => (
                 <tr key={s.id}>
                   <td>
-                    <Link href={`/produits/${s.id}`} className="hover:text-brand-700">
+                    <Link href={`/produits/${s.id}`} className="hover:text-ink">
                       {s.title}
                     </Link>
                   </td>

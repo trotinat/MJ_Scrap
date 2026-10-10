@@ -12,7 +12,7 @@ export function TestNotificationForm() {
       <SubmitButton pendingLabel="Envoi…">
         <Send className="h-4 w-4" /> Envoyer une notification de test
       </SubmitButton>
-      {state.message && <p className={`text-sm ${state.ok ? "text-emerald-700" : "text-rose-600"}`}>{state.message}</p>}
+      {state.message && <p className={`text-sm ${state.ok ? "text-proof" : "text-promo"}`}>{state.message}</p>}
     </form>
   );
 }

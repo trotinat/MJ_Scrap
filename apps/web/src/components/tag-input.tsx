@@ -42,11 +42,11 @@ export function TagInput({
   };
 
   return (
-    <div className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 shadow-sm focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
+    <div className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-lg border border-paper-line bg-white px-2 py-1.5 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
       {value.map((v) => (
-        <span key={v} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-sm text-slate-700">
+        <span key={v} className="inline-flex items-center gap-1 rounded-md bg-paper px-2 py-0.5 text-sm text-ink-soft">
           {v}
-          <button type="button" onClick={() => onChange(value.filter((x) => x !== v))} className="text-slate-400 hover:text-slate-700" aria-label={`Retirer ${v}`}>
+          <button type="button" onClick={() => onChange(value.filter((x) => x !== v))} className="text-ink-mute hover:text-ink-soft" aria-label={`Retirer ${v}`}>
             <X className="h-3 w-3" />
           </button>
         </span>
@@ -59,7 +59,7 @@ export function TagInput({
         placeholder={value.length ? "" : placeholder}
         list={suggestions ? listId : undefined}
         aria-label={ariaLabel}
-        className="min-w-[8rem] flex-1 border-0 bg-transparent p-1 text-sm outline-none placeholder:text-slate-400"
+        className="min-w-[8rem] flex-1 border-0 bg-transparent p-1 text-sm outline-none placeholder:text-ink-mute"
       />
       {suggestions && (
         <datalist id={listId}>

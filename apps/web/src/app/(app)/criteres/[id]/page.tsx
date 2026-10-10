@@ -13,12 +13,12 @@ import { deleteCriterionAction, duplicateCriterionAction, toggleCriterionAction 
 export const metadata = { title: "Détail du critère" };
 
 function Rules({ rules }: { rules: SpecRule[] }) {
-  if (rules.length === 0) return <span className="text-slate-400">—</span>;
+  if (rules.length === 0) return <span className="text-ink-mute">—</span>;
   return (
     <ul className="space-y-1">
       {rules.map((r, i) => (
         <li key={i}>
-          {specAttribute(r.attribute)?.label ?? r.attribute} <span className="text-slate-500">{SPEC_OPERATOR_LABELS[r.operator]}</span> <strong>{r.value}</strong>
+          {specAttribute(r.attribute)?.label ?? r.attribute} <span className="text-ink-mute">{SPEC_OPERATOR_LABELS[r.operator]}</span> <strong>{r.value}</strong>
         </li>
       ))}
     </ul>
@@ -33,7 +33,7 @@ function List({ values }: { values: string[] }) {
       ))}
     </div>
   ) : (
-    <span className="text-slate-400">—</span>
+    <span className="text-ink-mute">—</span>
   );
 }
 
@@ -53,13 +53,13 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
       f.categoryPaths.length ? (
         <ul key="cat" className="space-y-1">
           {f.categoryPaths.map((p) => (
-            <li key={p} className="break-all rounded-md bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700">
+            <li key={p} className="break-all rounded-md bg-paper px-2 py-1 font-mono text-xs text-ink-soft">
               {p}
             </li>
           ))}
         </ul>
       ) : (
-        <span key="cat" className="text-slate-400">—</span>
+        <span key="cat" className="text-ink-mute">—</span>
       ),
     ],
     ["Mots-clés", <List key="kw" values={f.keywords} />],
@@ -114,7 +114,7 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
       />
 
       {justAdded && (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        <div className="mb-6 rounded-xl border border-proof/30 bg-proof-soft p-4 text-sm text-proof">
           Critère créé et collecte demandée. Le worker la démarre dans les 15 secondes ; suivez-la dans{" "}
           <Link href="/collectes" className="font-medium underline">
             Historique des collectes
@@ -127,8 +127,8 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
           <dl className="space-y-3 text-sm">
             {rows.map(([k, v]) => (
               <div key={k}>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{k}</dt>
-                <dd className="mt-0.5 text-slate-800">{v}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-ink-mute">{k}</dt>
+                <dd className="mt-0.5 text-ink">{v}</dd>
               </div>
             ))}
           </dl>
@@ -141,21 +141,21 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
                 Les produits apparaissent ici après une collecte s&apos;ils respectent toutes les exigences obligatoires.
               </EmptyState>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-paper-line">
                 {matches.map(({ match, offer, product }) => (
                   <li key={match.id} className="flex gap-3 py-3">
                     <ProductImage src={product.imageUrl} alt={offer.title} className="h-16 w-16 shrink-0 rounded-lg" />
                     <div className="min-w-0 flex-1">
-                      <Link href={`/produits/${offer.id}`} className="line-clamp-2 text-sm font-medium text-slate-900 hover:text-brand-700">
+                      <Link href={`/produits/${offer.id}`} className="line-clamp-2 text-sm font-medium text-ink hover:text-ink">
                         {offer.title}
                       </Link>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-semibold text-brand-700">{formatMad(offer.currentPriceCents)}</span>
+                        <span className="font-semibold text-ink">{formatMad(offer.currentPriceCents)}</span>
                         <ScoreBadge score={match.score} dealClass={match.dealClass} />
                         <StockBadge stock={offer.stockStatus} />
                         <FreshnessBadge at={offer.lastSuccessAt} staleAfterHours={settings.staleAfterHours} />
                       </div>
-                      <p className="mt-1 text-xs text-slate-600">{match.explanation}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{match.explanation}</p>
                     </div>
                   </li>
                 ))}
@@ -165,7 +165,7 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
 
           <Card title="Historique des notifications">
             {notifs.length === 0 ? (
-              <p className="text-sm text-slate-500">Aucune notification envoyée pour ce critère.</p>
+              <p className="text-sm text-ink-mute">Aucune notification envoyée pour ce critère.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="data">
@@ -181,7 +181,7 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
                     {notifs.map(({ n, offerTitle, offerId }) => (
                       <tr key={n.id}>
                         <td className="whitespace-nowrap">{formatMoroccoTime(n.createdAt)}</td>
-                        <td>{offerId ? <Link href={`/produits/${offerId}`} className="hover:text-brand-700">{offerTitle}</Link> : "—"}</td>
+                        <td>{offerId ? <Link href={`/produits/${offerId}`} className="hover:text-ink">{offerTitle}</Link> : "—"}</td>
                         <td className="whitespace-nowrap">{formatMad(n.priceCents)}</td>
                         <td>
                           <Badge tone={n.status === "sent" ? "green" : n.status === "dead" ? "red" : "amber"}>{NOTIF_STATUS_LABELS[n.status]}</Badge>

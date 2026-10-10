@@ -10,11 +10,11 @@ import { quickAddFromUrlAction } from "./actions";
 export function QuickAddFromUrl() {
   const [state, action] = useActionState(quickAddFromUrlAction, {});
   return (
-    <form action={action} className="rounded-xl border border-brand-100 bg-brand-50 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-brand-900">
+    <form action={action} className="rounded-2xl border border-tag-deep/40 bg-tag-soft p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-ink">
         <Link2 className="h-4 w-4" aria-hidden /> Surveiller une page Marjane Mall
       </div>
-      <p className="mt-1 text-xs text-slate-600">
+      <p className="mt-1 text-xs text-ink-soft">
         Collez l&apos;adresse d&apos;une catégorie, d&apos;une boutique ou d&apos;une recherche filtrée (pointure, genre, livraison express…). Le critère est créé et une collecte démarre aussitôt.
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_16rem_auto]">
@@ -29,7 +29,7 @@ export function QuickAddFromUrl() {
         <input id="quick-name" name="name" className={input} placeholder="Nom (facultatif)" aria-label="Nom du critère" maxLength={120} />
         <SubmitButton pendingLabel="Création…">Surveiller</SubmitButton>
       </div>
-      {state.error && <p className="mt-2 text-sm text-rose-700">{state.error}</p>}
+      {state.error && <p className="mt-2 text-sm text-promo">{state.error}</p>}
     </form>
   );
 }

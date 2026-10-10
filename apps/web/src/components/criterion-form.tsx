@@ -32,8 +32,8 @@ const numOrNull = (s: string): number | null => {
 function RuleEditor({ title, hint, rules, onChange }: { title: string; hint: string; rules: SpecRule[]; onChange: (r: SpecRule[]) => void }) {
   return (
     <div>
-      <p className="text-sm font-medium text-slate-700">{title}</p>
-      <p className="mb-2 text-xs text-slate-500">{hint}</p>
+      <p className="text-sm font-medium text-ink-soft">{title}</p>
+      <p className="mb-2 text-xs text-ink-mute">{hint}</p>
       <div className="space-y-2">
         {rules.map((r, i) => (
           <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem_10rem_auto]">
@@ -104,7 +104,7 @@ export function CriterionForm({
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="payload" value={JSON.stringify(d)} />
-      {state.message && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{state.message}</div>}
+      {state.message && <div className="rounded-lg border border-promo/30 bg-promo-soft px-4 py-3 text-sm text-promo">{state.message}</div>}
 
       <Card title="Identification">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -112,8 +112,8 @@ export function CriterionForm({
             <input id="name" className={input} value={d.name} onChange={(ev) => setD({ ...d, name: ev.target.value })} required maxLength={120} />
           </Field>
           <Field label="Statut">
-            <label className="mt-2 inline-flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={d.enabled} onChange={(ev) => setD({ ...d, enabled: ev.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600" />
+            <label className="mt-2 inline-flex items-center gap-2 text-sm text-ink-soft">
+              <input type="checkbox" checked={d.enabled} onChange={(ev) => setD({ ...d, enabled: ev.target.checked })} className="h-4 w-4 rounded border-paper-line text-ink" />
               Critère actif (inclus dans les collectes)
             </label>
           </Field>
@@ -202,7 +202,7 @@ export function CriterionForm({
             onChange={(r) => setF({ mandatorySpecs: r })}
           />
           <RuleEditor title="Spécifications préférées" hint="Améliorent le score sans être obligatoires." rules={f.preferredSpecs} onChange={(r) => setF({ preferredSpecs: r })} />
-          {(e["filters.mandatorySpecs"] || e["filters.preferredSpecs"]) && <p className="text-xs text-rose-600">{e["filters.mandatorySpecs"] ?? e["filters.preferredSpecs"]}</p>}
+          {(e["filters.mandatorySpecs"] || e["filters.preferredSpecs"]) && <p className="text-xs text-promo">{e["filters.mandatorySpecs"] ?? e["filters.preferredSpecs"]}</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Caractéristiques préférées (texte)" hint="Ex. Dolby Atmos, Android TV">
               <TagInput value={f.preferredCharacteristics} onChange={(v) => setF({ preferredCharacteristics: v })} ariaLabel="Caractéristiques préférées" />

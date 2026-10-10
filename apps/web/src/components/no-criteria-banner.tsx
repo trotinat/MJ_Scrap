@@ -8,7 +8,7 @@ export async function NoCriteriaBanner() {
   const [row] = await getDb().select({ n: count() }).from(searchCriteria).where(eq(searchCriteria.enabled, true));
   if (Number(row?.n ?? 0) > 0) return null;
   return (
-    <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <div className="mb-6 flex items-start gap-3 rounded-xl border border-tag-deep/40 bg-tag-soft p-4 text-sm text-ink">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <p>
         <strong>Aucun critère de recherche actif</strong> : les collectes n&apos;ont rien à chercher sur Marjane Mall.{" "}

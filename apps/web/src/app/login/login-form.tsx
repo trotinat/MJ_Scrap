@@ -15,7 +15,7 @@ export function LoginForm() {
       <Field label="Mot de passe" htmlFor="password">
         <input id="password" name="password" type="password" autoComplete="current-password" required className={input} />
       </Field>
-      {state.error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{state.error}</p>}
+      {state.error && <p className="rounded-lg bg-promo-soft px-3 py-2 text-sm text-promo">{state.error}</p>}
       <SubmitButton className="w-full" pendingLabel="Connexion…">
         Se connecter
       </SubmitButton>

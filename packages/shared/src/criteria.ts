@@ -192,6 +192,9 @@ export const EXAMPLE_CRITERIA: CriterionInputRaw[] = [
  * from the criteria page). Paths come from the site structure observed in
  * October 2026; each one stays editable.
  */
+/** Children's and women's products, as named on Marjane Mall ("pour Fille", "EL I", "… W"). */
+export const ADIDAS_HOMME_EXCLUSIONS = ["enfants", "enfant", "femme", "femmes", "W", "fille", "filles", "garçon", "garcon", "junior", "kids", "bébé", "bebe"];
+
 export const RECOMMENDED_CRITERIA: CriterionInputRaw[] = [
   {
     name: "Adidas Homme – pointure 42",
@@ -206,7 +209,7 @@ export const RECOMMENDED_CRITERIA: CriterionInputRaw[] = [
       ],
       keywords: ["chaussures", "shoes", "baskets", "sneakers", "claquette", "mules"],
       includedBrands: ["Adidas"],
-      excludedCharacteristics: ["enfants", "enfant", "femme", "femmes", "W"],
+      excludedCharacteristics: ADIDAS_HOMME_EXCLUSIONS,
     },
   },
   {

@@ -10,7 +10,7 @@ import { relativeTime } from "@/lib/format";
 import { duplicateCriterionAction, seedExamplesAction, seedRecommendedAction, toggleCriterionAction } from "./actions";
 import { QuickAddFromUrl } from "./quick-add";
 
-export const metadata = { title: "Mes critères de recherche" };
+export const metadata = { title: "Mes recherches" };
 
 export default async function CriteriaPage() {
   const [criteria, summaries] = await Promise.all([listCriteria(getDb()), criteriaSummaries()]);
@@ -19,11 +19,11 @@ export default async function CriteriaPage() {
   return (
     <>
       <PageHeader
-        title="Mes critères de recherche"
-        description="Chaque critère est évalué indépendamment à chaque collecte. Les modifications sont prises en compte dès la collecte suivante, sans redémarrage."
+        title="Mes recherches"
+        description="Ce que vous voulez suivre. Chaque recherche est vérifiée à chaque passage, et vos modifications comptent dès le suivant."
         actions={
           <Link href="/criteres/nouveau" className={btn.primary}>
-            <Plus className="h-4 w-4" /> Nouveau critère
+            <Plus className="h-4 w-4" /> Nouvelle recherche
           </Link>
         }
       />
@@ -34,10 +34,10 @@ export default async function CriteriaPage() {
         <div className="mb-6 rounded-xl border border-brand-100 bg-brand-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Sparkles className="h-4 w-4 text-brand-600" /> Critères recommandés
+              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Sparkles className="h-4 w-4 text-ink" /> Critères recommandés
               </p>
-              <p className="mt-1 text-sm text-slate-600">{missingPresets.map((c) => c.name).join(" · ")}</p>
+              <p className="mt-1 text-sm text-ink-soft">{missingPresets.map((c) => c.name).join(" · ")}</p>
             </div>
             <form action={seedRecommendedAction}>
               <SubmitButton pendingLabel="Ajout…">Ajouter {missingPresets.length > 1 ? `les ${missingPresets.length} critères` : "ce critère"} et lancer une collecte</SubmitButton>
@@ -58,13 +58,13 @@ export default async function CriteriaPage() {
             const s = summaries.get(c.id);
             const f = c.filters;
             return (
-              <div key={c.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div key={c.id} className="flex flex-col rounded-2xl border border-paper-line bg-paper-card p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/criteres/${c.id}`} className="text-base font-semibold text-slate-900 hover:text-brand-700">
+                    <Link href={`/criteres/${c.id}`} className="text-base font-semibold text-ink hover:text-ink">
                       {c.name}
                     </Link>
-                    {c.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{c.description}</p>}
+                    {c.description && <p className="mt-1 line-clamp-2 text-sm text-ink-mute">{c.description}</p>}
                   </div>
                   {c.enabled ? <Badge tone="green">Actif</Badge> : <Badge>Désactivé</Badge>}
                 </div>
@@ -83,21 +83,21 @@ export default async function CriteriaPage() {
                   {f.mandatorySpecs.length > 0 && <Badge tone="amber">{f.mandatorySpecs.length} exigence(s)</Badge>}
                 </div>
                 <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <dt className="text-slate-500">Correspondances</dt>
-                    <dd className="text-lg font-semibold text-slate-900">{s?.matches ?? 0}</dd>
+                  <div className="rounded-lg bg-paper p-2">
+                    <dt className="text-ink-mute">Offres trouvées</dt>
+                    <dd className="text-lg font-semibold text-ink">{s?.matches ?? 0}</dd>
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <dt className="text-slate-500">Meilleur score</dt>
-                    <dd className="text-lg font-semibold text-slate-900">{s?.best_score ?? "—"}</dd>
+                  <div className="rounded-lg bg-paper p-2">
+                    <dt className="text-ink-mute">Meilleure note</dt>
+                    <dd className="text-lg font-semibold text-ink">{s?.best_score ?? "—"}</dd>
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <dt className="text-slate-500">Dernière alerte</dt>
-                    <dd className="pt-1 text-sm font-medium text-slate-900">{s?.last_notified ? relativeTime(s.last_notified) : "—"}</dd>
+                  <div className="rounded-lg bg-paper p-2">
+                    <dt className="text-ink-mute">Dernière alerte</dt>
+                    <dd className="pt-1 text-sm font-medium text-ink">{s?.last_notified ? relativeTime(s.last_notified) : "—"}</dd>
                   </div>
                 </dl>
-                <p className="mt-3 text-xs text-slate-500">Notifications : {NOTIFY_MODE_LABELS[c.notifyMode]} · score ≥ {c.notifyMinScore}</p>
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                <p className="mt-3 text-xs text-ink-mute">Notifications : {NOTIFY_MODE_LABELS[c.notifyMode]} · score ≥ {c.notifyMinScore}</p>
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-paper-line pt-4">
                   <Link href={`/criteres/${c.id}/modifier`} className={btn.secondary}>
                     <Pencil className="h-4 w-4" /> Modifier
                   </Link>

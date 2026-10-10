@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { ArrowUpRight, Download, GitCompare, Tag } from "lucide-react";
+import { Download, GitCompare, SlidersHorizontal, Tag } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
-import { Badge, btn, EmptyState, FreshnessBadge, input, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
+import { btn, EmptyState, input, PageHeader } from "@/components/ui";
+import { DealCard, dealGrid } from "@/components/deal-card";
 import { dealFacets, listDeals } from "@/lib/queries";
 import { filtersToQuery, parseDealFilters } from "@/lib/deal-filters";
-import { formatMad, formatPct } from "@/lib/format";
 
 export const metadata = { title: "Promotions détectées" };
 
@@ -18,8 +18,8 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader
-        title="Promotions détectées"
-        description={`${deals.total} offre(s) respectant au moins un critère actif. Les remises « annoncées » proviennent du site ; les évolutions de prix proviennent de nos propres relevés.`}
+        title="Offres trouvées pour vos recherches"
+        description={`${deals.total} offres. La remise en rouge est celle annoncée par Marjane ; les baisses en vert sont mesurées sur nos propres relevés.`}
         actions={
           <>
             <a href={`/api/export?format=csv&${qs}`} className={btn.secondary}>
@@ -32,7 +32,11 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
         }
       />
 
-      <form method="get" className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+      <details className="group mb-6 rounded-2xl border border-paper-line bg-paper-card" open={Object.keys(filters).some((k) => k !== "page" && k !== "sort" && (filters as Record<string, unknown>)[k] !== undefined)}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-ink">
+        <SlidersHorizontal className="h-4 w-4" aria-hidden /> Filtrer et trier
+      </summary>
+      <form method="get" className="grid gap-3 border-t border-paper-line p-4 sm:grid-cols-2 lg:grid-cols-4">
         <input name="q" defaultValue={filters.q} placeholder="Rechercher…" className={input} aria-label="Recherche" />
         <select name="criterionId" defaultValue={filters.criterionId ?? ""} className={input} aria-label="Critère">
           <option value="">Tous les critères</option>
@@ -89,77 +93,39 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
           </Link>
         </div>
       </form>
+      </details>
 
       {deals.rows.length === 0 ? (
         <EmptyState icon={Tag} title="Aucune promotion ne correspond à ces filtres" />
       ) : (
         <>
           <form id="compare-form" method="get" action="/promotions/comparer" className="mb-3 flex items-center justify-end gap-2">
-            <span className="text-xs text-slate-500">Cochez 2 à 4 offres pour les comparer</span>
+            <span className="text-xs text-ink-mute">Cochez 2 à 4 offres pour les comparer</span>
             <button type="submit" className={btn.secondary}>
               <GitCompare className="h-4 w-4" /> Comparer
             </button>
           </form>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={dealGrid}>
             {deals.rows.map((d) => (
-              <article key={d.offer_id} className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="relative">
-                  <ProductImage src={d.image_url} alt={d.title} className="h-44 w-full rounded-t-xl" />
-                  <label className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1 text-xs text-slate-700 shadow">
-                    <input type="checkbox" name="ids" value={d.offer_id} form="compare-form" className="h-3.5 w-3.5 rounded border-slate-300" /> Comparer
-                  </label>
-                  {d.advertised_discount_pct !== null && (
-                    <span className="absolute right-2 top-2 rounded-md bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white" title="Remise annoncée par Marjane Mall">
-                      -{d.advertised_discount_pct} %
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col p-4">
-                  <p className="text-xs text-slate-500">
-                    {d.brand ?? "Marque inconnue"}
-                    {d.seller ? ` · Vendu par ${d.seller}` : ""}
-                  </p>
-                  <Link href={`/produits/${d.offer_id}`} className="mt-1 line-clamp-2 text-sm font-semibold text-slate-900 hover:text-brand-700">
-                    {d.title}
-                  </Link>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-lg font-bold text-brand-700">{formatMad(d.current_price_cents)}</span>
-                    {d.original_price_cents && <span className="text-sm text-slate-400 line-through">{formatMad(d.original_price_cents)}</span>}
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Évolution observée :{" "}
-                    {d.drop_pct === null ? (
-                      "pas encore d'historique"
-                    ) : (
-                      <span className={d.drop_pct < 0 ? "font-medium text-emerald-700" : d.drop_pct > 0 ? "text-rose-600" : ""}>
-                        {formatPct(d.drop_pct)} vs relevé précédent
-                      </span>
-                    )}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <ScoreBadge score={d.score} dealClass={d.matches[0]?.dealClass ?? "ordinary"} />
-                    <StockBadge stock={d.stock_status} />
-                    <FreshnessBadge at={d.last_success_at} staleAfterHours={settings.staleAfterHours} />
-                    {d.offer_status !== "active" && <Badge tone="red">{d.offer_status === "missing" ? "Plus listé" : "Indisponible"}</Badge>}
-                  </div>
-                  <p className="mt-2 line-clamp-3 text-xs text-slate-600">{d.matches[0]?.explanation}</p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {d.matches.map((m) => (
-                      <Badge key={m.id} tone="blue">
-                        {m.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="mt-auto flex items-center justify-between pt-3">
-                    <Link href={`/produits/${d.offer_id}`} className={btn.ghost}>
-                      Détail & historique
-                    </Link>
-                    <a href={d.url} target="_blank" rel="noopener noreferrer nofollow" className={btn.ghost}>
-                      Marjane Mall <ArrowUpRight className="h-3.5 w-3.5" />
-                    </a>
-                  </div>
-                </div>
-              </article>
+              <DealCard
+                key={d.offer_id}
+                compareForm="compare-form"
+                d={{
+                  offerId: d.offer_id,
+                  title: d.title,
+                  url: d.url,
+                  imageUrl: d.image_url,
+                  brand: d.brand,
+                  priceCents: d.current_price_cents,
+                  originalPriceCents: d.original_price_cents,
+                  discountPct: d.advertised_discount_pct,
+                  previousPriceCents: d.prev_price_cents,
+                  minPriceCents: d.min_price_cents,
+                  firstSeenAt: d.first_seen_at,
+                  matches: d.matches,
+                  status: d.offer_status,
+                }}
+              />
             ))}
           </div>
           {pages > 1 && (
@@ -169,7 +135,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
                   Précédent
                 </Link>
               )}
-              <span className="text-slate-500">
+              <span className="text-ink-mute">
                 Page {page} / {pages}
               </span>
               {page < pages && (

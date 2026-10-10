@@ -9,7 +9,7 @@ import { changePasswordAction, saveNotificationSettingsAction, saveSettingsActio
 
 function Feedback({ state }: { state: SettingsState }) {
   if (!state.message) return null;
-  return <p className={`text-sm ${state.ok ? "text-emerald-700" : "text-rose-600"}`}>{state.message}</p>;
+  return <p className={`text-sm ${state.ok ? "text-proof" : "text-promo"}`}>{state.message}</p>;
 }
 
 const WEIGHT_LABELS: [keyof AppSettings["weights"], string][] = [
@@ -53,15 +53,15 @@ export function AppSettingsForm({ settings }: { settings: AppSettings }) {
           <Field label="Donnée considérée ancienne après (heures)" htmlFor="staleAfterHours">
             <input id="staleAfterHours" name="staleAfterHours" className={input} inputMode="numeric" defaultValue={settings.staleAfterHours} />
           </Field>
-          <label className="mt-6 inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} className="h-4 w-4 rounded border-slate-300" />
+          <label className="mt-6 inline-flex items-center gap-2 text-sm text-ink-soft">
+            <input type="checkbox" name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} className="h-4 w-4 rounded border-paper-line" />
             Envoyer les alertes Telegram
           </label>
         </div>
       </Card>
 
       <Card title="Score des offres">
-        <p className="mb-4 text-sm text-slate-500">
+        <p className="mb-4 text-sm text-ink-mute">
           Le score (0–100) est une moyenne pondérée des composantes applicables. Une composante dont la donnée est absente n&apos;apporte aucun point. Les exigences obligatoires restent prioritaires quel que soit le score.
         </p>
         <div className="grid gap-4 sm:grid-cols-4">
@@ -98,11 +98,11 @@ export function NotificationSettingsForm({ ns }: { ns: { enabled: boolean; sendI
     <form action={action}>
       <Card title="Livraison Telegram">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="enabled" defaultChecked={ns.enabled} className="h-4 w-4 rounded border-slate-300" /> Livraison activée
+          <label className="inline-flex items-center gap-2 text-sm text-ink-soft">
+            <input type="checkbox" name="enabled" defaultChecked={ns.enabled} className="h-4 w-4 rounded border-paper-line" /> Livraison activée
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="sendImages" defaultChecked={ns.sendImages} className="h-4 w-4 rounded border-slate-300" /> Joindre l&apos;image du produit
+          <label className="inline-flex items-center gap-2 text-sm text-ink-soft">
+            <input type="checkbox" name="sendImages" defaultChecked={ns.sendImages} className="h-4 w-4 rounded border-paper-line" /> Joindre l&apos;image du produit
           </label>
           <Field label="Tentatives maximum par message" htmlFor="maxAttempts">
             <input id="maxAttempts" name="maxAttempts" className={input} inputMode="numeric" defaultValue={ns.maxAttempts} />

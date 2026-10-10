@@ -168,6 +168,15 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
     }
   };
 
+  const recordNote = async (stage: string, message: string, url: string) => {
+    log.info({ stage, url }, message);
+    try {
+      await db.insert(scrapingErrors).values({ runId, stage, url, httpStatus: null, message });
+    } catch (err) {
+      log.error({ err: (err as Error).message }, "impossible d'enregistrer la note de collecte");
+    }
+  };
+
   let status: RunStatus = "success";
   let fatal: string | null = null;
 
@@ -179,7 +188,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
       fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
       status = "skipped";
     } else {
-      const blocked = await collect(deps, runId, criteria, settings, stats, recordError, now, log);
+      const blocked = await collect(deps, runId, criteria, settings, stats, recordError, now, log, recordNote);
       if (blocked) {
         // The site refused access: nothing more was requested, but what was
         // legitimately read before the refusal has been stored.
@@ -247,6 +256,7 @@ async function collect(
   recordError: (stage: string, message: string, url?: string | null, httpStatus?: number | null) => Promise<void>,
   now: () => Date,
   log: Logger,
+  recordNote: (stage: string, message: string, url: string) => Promise<void> = async () => undefined,
 ): Promise<AccessBlockedError | RobotsDisallowedError | null> {
   const { db, adapter } = deps;
   let blocked: AccessBlockedError | RobotsDisallowedError | null = null;
@@ -266,11 +276,8 @@ async function collect(
       log.info({ path, method: res.method, cards: res.items.length }, "liste analysée");
       // An empty extraction is treated as a failure, so it can never mark offers as missing.
       if (res.items.length === 0) {
-        await recordError(
-          "listing",
-          "Aucun produit dans la réponse du site pour cette page (liste chargée par le navigateur). Ses produits restent détectés s'ils apparaissent dans les Ventes flash ou le Déstockage.",
-          path,
-        );
+        // A known limitation, not a failure: noted for the history, the run stays successful.
+        await recordNote("page-non-lisible", "Cette page charge ses produits après coup : ils sont suivis quand ils apparaissent dans les Ventes flash.", path);
       }
       else {
         crawledPaths.push(path);

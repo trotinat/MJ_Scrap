@@ -43,7 +43,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Comparaison" description="Comparaison côte à côte des offres sélectionnées." />
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-paper-line bg-paper-card">
         <table className="data">
           <thead>
             <tr>
@@ -51,7 +51,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
               {items.map((i) => (
                 <th key={i.offer.id} className="min-w-[14rem] normal-case">
                   <ProductImage src={i.product.imageUrl} alt={i.offer.title} className="mb-2 h-28 w-full rounded-lg" />
-                  <Link href={`/produits/${i.offer.id}`} className="line-clamp-3 text-sm font-semibold tracking-normal text-slate-900 hover:text-brand-700">
+                  <Link href={`/produits/${i.offer.id}`} className="line-clamp-3 text-sm font-semibold tracking-normal text-ink hover:text-ink">
                     {i.offer.title}
                   </Link>
                 </th>
@@ -60,7 +60,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           </thead>
           <tbody>
             {row("Prix", (i) => (
-              <span className={i.offer.currentPriceCents === cheapest ? "font-bold text-brand-700" : "font-semibold"}>{formatMad(i.offer.currentPriceCents)}</span>
+              <span className={i.offer.currentPriceCents === cheapest ? "font-bold text-ink" : "font-semibold"}>{formatMad(i.offer.currentPriceCents)}</span>
             ))}
             {row("Prix barré annoncé", (i) => formatMad(i.offer.originalPriceCents))}
             {row("Remise annoncée", (i) => (i.offer.advertisedDiscountPct !== null ? `-${i.offer.advertisedDiscountPct} %` : "—"))}

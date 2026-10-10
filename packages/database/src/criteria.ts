@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import { criterionFiltersSchema, criterionInputSchema, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
+import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
 import { applicationSettings, searchCriteria } from "./schema";
 
@@ -106,4 +106,29 @@ export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean
     .values({ key: FLAG, value: { at: new Date().toISOString(), added } })
     .onConflictDoNothing();
   return added;
+}
+
+/**
+ * One-time fixes to recommended criteria already created with an older
+ * definition (only adds exclusions; never removes what the user set).
+ */
+export async function upgradeRecommendedCriteria(db: DbOrTx): Promise<number> {
+  const FLAG = "recommended_criteria_upgraded_v2";
+  const done = await db.select({ key: applicationSettings.key }).from(applicationSettings).where(eq(applicationSettings.key, FLAG)).limit(1);
+  if (done.length > 0) return 0;
+  let changed = 0;
+  const rows = await db.select().from(searchCriteria).where(eq(searchCriteria.name, RECOMMENDED_CRITERIA[0]!.name));
+  for (const row of rows) {
+    const c = rowToCriterion(row);
+    const have = new Set(c.filters.excludedCharacteristics.map((x) => x.toLowerCase()));
+    const add = ADIDAS_HOMME_EXCLUSIONS.filter((x) => !have.has(x.toLowerCase()));
+    if (add.length === 0) continue;
+    await db
+      .update(searchCriteria)
+      .set({ filters: { ...c.filters, excludedCharacteristics: [...c.filters.excludedCharacteristics, ...add] } })
+      .where(eq(searchCriteria.id, row.id));
+    changed++;
+  }
+  await db.insert(applicationSettings).values({ key: FLAG, value: { at: new Date().toISOString(), changed } }).onConflictDoNothing();
+  return changed;
 }

@@ -14,7 +14,7 @@ const madFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2, minimu
 
 export function PriceChart({ points }: { points: ChartPoint[] }) {
   if (points.length < 2) {
-    return <p className="text-sm text-slate-500">Au moins deux relevés sont nécessaires pour afficher une courbe ({points.length} relevé pour l'instant).</p>;
+    return <p className="text-sm text-ink-mute">Au moins deux relevés sont nécessaires pour afficher une courbe ({points.length} relevé pour l'instant).</p>;
   }
   const hasOriginal = points.some((p) => p.original !== null);
   return (
