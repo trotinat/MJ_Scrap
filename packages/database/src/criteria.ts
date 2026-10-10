@@ -1,7 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
 import { applicationSettings, searchCriteria } from "./schema";
+import { getAppSettings } from "./settings";
 
 type Row = typeof searchCriteria.$inferSelect;
 
@@ -79,8 +80,20 @@ export async function duplicateCriterion(db: DbOrTx, id: string): Promise<Criter
   return createCriterion(db, { ...c, name: `${c.name} (copie)`.slice(0, 120), enabled: false });
 }
 
-export async function deleteCriterion(db: DbOrTx, id: string): Promise<void> {
+/**
+ * Deletes a search AND the data it brought in: offers (with price history)
+ * that no remaining search matches and that are not listed on a promo page.
+ */
+export async function deleteCriterion(db: DbOrTx, id: string): Promise<{ offersRemoved: number }> {
   await db.delete(searchCriteria).where(eq(searchCriteria.id, id));
+  const settings = await getAppSettings(db);
+  const promo = settings.dealPagePaths.length > 0 ? sql`and listing_path in (${sql.join(settings.dealPagePaths.map((p) => sql`${p}`), sql`, `)})` : sql`and false`;
+  const res = await db.execute(sql`
+    delete from product_offers o
+    where not exists (select 1 from deal_matches m where m.offer_id = o.id and m.is_match)
+      and not exists (select 1 from listing_appearances a where a.offer_id = o.id ${promo})`);
+  await db.execute(sql`delete from products p where not exists (select 1 from product_offers o where o.product_id = p.id)`);
+  return { offersRemoved: Number((res as { rowCount?: number }).rowCount ?? 0) };
 }
 
 /**

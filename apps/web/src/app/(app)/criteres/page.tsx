@@ -4,10 +4,11 @@ import { getDb, listCriteria } from "@mdw/database";
 import { RECOMMENDED_CRITERIA } from "@mdw/shared";
 import { formatMad, madToCents, NOTIFY_MODE_LABELS } from "@mdw/shared";
 import { Badge, btn, EmptyState, PageHeader } from "@/components/ui";
+import { DeleteButton } from "@/components/delete-button";
 import { SubmitButton } from "@/components/buttons";
 import { criteriaSummaries } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
-import { duplicateCriterionAction, seedExamplesAction, seedRecommendedAction, toggleCriterionAction } from "./actions";
+import { deleteCriterionAction, duplicateCriterionAction, seedExamplesAction, seedRecommendedAction, toggleCriterionAction } from "./actions";
 import { QuickAddFromUrl } from "./quick-add";
 
 export const metadata = { title: "Mes recherches" };
@@ -111,6 +112,10 @@ export default async function CriteriaPage() {
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="enabled" value={String(!c.enabled)} />
                     <SubmitButton variant="secondary">{c.enabled ? "Désactiver" : "Activer"}</SubmitButton>
+                  </form>
+                  <form action={deleteCriterionAction}>
+                    <input type="hidden" name="id" value={c.id} />
+                    <DeleteButton message={`Supprimer « ${c.name} » et toutes les offres qu'elle a trouvées ? Cette action est définitive.`} />
                   </form>
                 </div>
               </div>

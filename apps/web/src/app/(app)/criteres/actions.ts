@@ -77,7 +77,7 @@ export async function deleteCriterionAction(formData: FormData): Promise<void> {
   await requireUser();
   const id = uuid.parse(formData.get("id"));
   await deleteCriterion(getDb(), id);
-  revalidatePath("/criteres");
+  revalidatePath("/", "layout");
   redirect("/criteres");
 }
 
