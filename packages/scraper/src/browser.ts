@@ -75,12 +75,12 @@ export class ListingRenderer {
       let previousCount = await page.locator('a[href*="/p/"]').count();
       for (let i = 1; i < this.opts.maxPages; i++) {
         await page.mouse.wheel(0, 6000);
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(400);
         const more = page.getByRole("button", { name: /voir plus|charger plus|afficher plus/i }).first();
         if (await more.isVisible().catch(() => false)) {
           await more.click({ timeout: 5000 }).catch(() => undefined);
         }
-        await page.waitForTimeout(Math.max(1500, this.opts.minDelayMs));
+        await page.waitForTimeout(1200);
         const count = await page.locator('a[href*="/p/"]').count();
         if (count <= previousCount) break; // nothing more loaded
         previousCount = count;

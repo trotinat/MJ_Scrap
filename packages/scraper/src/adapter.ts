@@ -1,5 +1,5 @@
 import type { ListingItem, ProductDetail } from "@mdw/shared";
-import { HttpError, PoliteFetcher, type FetcherOptions } from "./http";
+import { AccessBlockedError, HttpError, PoliteFetcher, type FetcherOptions } from "./http";
 import { ListingRenderer } from "./browser";
 import { parseListingHtml } from "./parse/listing";
 import { parseEmbeddedProducts } from "./parse/embedded";
@@ -39,6 +39,7 @@ export interface SiteAdapter {
 export class MarjaneAdapter implements SiteAdapter {
   private readonly fetcher: PoliteFetcher;
   private renderer: ListingRenderer | null = null;
+  private renderDisabled = false;
 
   constructor(private readonly opts: AdapterOptions) {
     this.fetcher = new PoliteFetcher(opts);
@@ -80,8 +81,19 @@ export class MarjaneAdapter implements SiteAdapter {
       const u = new URL(url);
       if (!r.isAllowed(u.pathname + u.search)) throw new HttpError("Interdit par robots.txt", 0, url);
     });
-    const html = await this.getRenderer(maxPages).render(url);
-    return { path, items: mergeItems(parseEmbeddedProducts(html, path), parseListingHtml(html, path)), method: "browser", pagesLoaded: maxPages };
+    // A broken or missing browser must never stall the run: after one failure
+    // (or a hard timeout) the remaining client-rendered pages are skipped.
+    if (this.renderDisabled) return { path, items: [], method: "http", pagesLoaded: 1 };
+    try {
+      const html = await withTimeout(this.getRenderer(maxPages).render(url), this.opts.renderTimeoutMs, "Rendu du navigateur trop long");
+      return { path, items: mergeItems(parseEmbeddedProducts(html, path), parseListingHtml(html, path)), method: "browser", pagesLoaded: maxPages };
+    } catch (err) {
+      if (err instanceof AccessBlockedError) throw err;
+      this.renderDisabled = true;
+      await this.renderer?.close().catch(() => undefined);
+      this.renderer = null;
+      throw new HttpError(`Navigateur indisponible : ${String((err as Error).message ?? err).split("\n")[0]?.slice(0, 160)}. Lancez « pnpm setup:browser » une fois.`, 0, url);
+    }
   }
 
   async fetchProduct(url: string): Promise<DetailResult> {
@@ -130,4 +142,12 @@ function mergeItems(primary: ListingItem[], fallback: ListingItem[]): ListingIte
     else if (!p.imageUrl && i.imageUrl) p.imageUrl = i.imageUrl;
   }
   return [...out.values()];
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  let t: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, rej) => {
+    t = setTimeout(() => rej(new Error(message)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t));
 }

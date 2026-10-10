@@ -140,6 +140,19 @@ if (!PROD) {
     console.log("Version optimisée déjà compilée pour ce code : démarrage direct.");
   }
 
+  // Navigateur léger (Chromium) pour lire les pages que Marjane charge côté navigateur
+  // (TV, casques, friteuses…). Installé une seule fois ; un échec n'empêche pas le démarrage.
+  const browserStamp = path.join(root, ".localbrowser");
+  if (!existsSync(browserStamp)) {
+    console.log("\nInstallation unique du navigateur de lecture (Chromium, ~150 Mo)…\n");
+    try {
+      await run(["setup:browser"]);
+      writeFileSync(browserStamp, new Date().toISOString());
+    } catch (err) {
+      console.error("Navigateur non installé (les pages TV/casques/friteuses ne seront pas lues) :", String(err));
+    }
+  }
+
   // http://localhost: secure cookies are not required for a local test.
   const env = { ...process.env, NODE_ENV: "production", COOKIE_SECURE: "false", PORT: process.env.PORT ?? "3000", HOSTNAME: "localhost" };
   const web = spawn(process.execPath, [nextBin, "start", "-p", env.PORT, "-H", env.HOSTNAME], { cwd: path.join(root, "apps/web"), stdio: "inherit", env });
