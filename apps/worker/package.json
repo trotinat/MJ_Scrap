@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:bot": "tsx watch src/bot.ts",
     "start": "node dist/index.js",
+    "start:bot": "node dist/bot.js",
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json"
   },

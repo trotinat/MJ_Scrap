@@ -245,7 +245,6 @@ export type TrackedOffer = {
   title: string;
   current_price_cents: number | null;
   min_price_cents: number | null;
-  max_price_cents: number | null;
   observations: number;
   first_seen_at: string;
   last_success_at: string | null;
@@ -269,7 +268,7 @@ export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limi
                    then (o.current_price_cents - o.min_price_cents)::numeric / o.min_price_cents end asc nulls last`
           : sql`o.last_seen_at desc`;
   const res = await db().execute<TrackedOffer>(sql`
-    select o.id, o.title, o.current_price_cents, o.min_price_cents, o.max_price_cents, o.first_seen_at, o.last_success_at, o.status,
+    select o.id, o.title, o.current_price_cents, o.min_price_cents, o.first_seen_at, o.last_success_at, o.status,
       (select count(*)::int from price_history ph where ph.offer_id = o.id) as observations,
       coalesce((
         select json_agg(x.price_cents order by x.observed_at, x.id)

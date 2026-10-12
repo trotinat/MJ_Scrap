@@ -15,6 +15,13 @@
       "when": 1791577603391,
       "tag": "0001_listing_appearances",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0002_telegram_bot",
+      "breakpoints": true
     }
   ]
 }

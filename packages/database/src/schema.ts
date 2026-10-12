@@ -60,11 +60,19 @@ export const searchCriteria = pgTable("search_criteria", {
   notifyMode: text("notify_mode").$type<NotifyMode>().notNull().default("all"),
   notifyMinScore: integer("notify_min_score").notNull().default(50),
   minPriceDropPct: numeric("min_price_drop_pct", { precision: 5, scale: 2, mode: "number" }).notNull().default(5),
+  /**
+   * "user" = a search the user created themselves; "recommended" = seeded
+   * built-in (recommended / promo) criteria. Only "user" searches trigger
+   * Telegram alerts (the recommended ones still feed the dashboard).
+   */
+  origin: text("origin").$type<CriterionOrigin>().notNull().default("user"),
   /** Validated by criterionFiltersSchema (amounts in MAD). */
   filters: jsonb("filters").$type<CriterionFilters>().notNull(),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [index("search_criteria_enabled_idx").on(t.enabled)]);
+
+export type CriterionOrigin = "user" | "recommended";
 
 /* ----------------------------------------------------------------------------
  * Products, offers and price history
@@ -319,6 +327,25 @@ export const notificationSettings = pgTable("notification_settings", {
   maxPerRun: integer("max_per_run").notNull().default(30),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
+
+export type SubscriberStatus = "active" | "paused" | "blocked";
+
+/**
+ * People (or groups) who opened the Telegram bot with /start. Alerts are
+ * delivered to every "active" subscriber; "paused" is a self-service mute and
+ * "blocked" is set automatically when Telegram reports the chat is unreachable.
+ */
+export const telegramSubscribers = pgTable("telegram_subscribers", {
+  /** Telegram chat id (kept as text: group/channel ids exceed int4 and are negative). */
+  chatId: text("chat_id").primaryKey(),
+  type: text("type"),
+  username: text("username"),
+  firstName: text("first_name"),
+  status: text("status").$type<SubscriberStatus>().notNull().default("active"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  lastInteractionAt: ts("last_interaction_at"),
+}, (t) => [index("telegram_subscribers_status_idx").on(t.status)]);
 
 /* ----------------------------------------------------------------------------
  * Application settings and worker status

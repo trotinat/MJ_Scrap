@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 // Bundles the worker and the workspace packages into dist/; third-party
 // dependencies (pg, playwright, pino…) stay external and are installed in the image.
 export default defineConfig({
-  entry: ["src/index.ts", "src/cli.ts"],
+  entry: ["src/index.ts", "src/cli.ts", "src/bot.ts"],
   format: ["esm"],
   platform: "node",
   target: "node22",

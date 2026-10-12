@@ -141,6 +141,27 @@ export function buildProfilePaths(path: string, p: ShopperProfile): string[] {
   return [...new Set(paths)].slice(0, MAX_PATHS_PER_BASE);
 }
 
+/** Words that mark a product as belonging to a gender the shopper didn't pick. */
+const GENDER_EXCLUSION_WORDS: Record<string, string[]> = {
+  Homme: ["femme", "femmes", "fille", "filles", "enfant", "enfants", "bébé", "bebe", "garçon", "garcon", "junior", "kids"],
+  Femme: ["homme", "hommes", "garçon", "garcon", "enfant", "enfants", "bébé", "bebe", "fille", "junior", "kids"],
+  Garçon: ["femme", "fille", "filles", "homme adulte"],
+  Fille: ["homme", "garçon", "garcon"],
+};
+
+/**
+ * Title words to exclude so a gendered profile doesn't match the opposite
+ * gender's items. Only applied when the shopper picked gender(s) but not the
+ * catch-all "Mixte"; words claimed by a selected gender are never excluded
+ * (e.g. Homme + Garçon keeps both).
+ */
+export function profileGenderExclusions(p: ShopperProfile): string[] {
+  if (p.genders.length === 0 || p.genders.includes("Mixte")) return [];
+  const keep = new Set(p.genders.flatMap((g) => [g.toLowerCase(), ...(g === "Homme" ? ["hommes"] : g === "Femme" ? ["femmes"] : [])]));
+  const words = new Set(p.genders.flatMap((g) => GENDER_EXCLUSION_WORDS[g] ?? []));
+  return [...words].filter((w) => !keep.has(w));
+}
+
 /**
  * Criterion-filter fields derived from the profile. These are applied by our
  * own matching/scoring engine on every listing, fashion or not. Existing
@@ -150,6 +171,7 @@ export function profileToFilterPatch(p: ShopperProfile): {
   preferredBrands: string[];
   excludedBrands: string[];
   preferredSellers: string[];
+  excludedCharacteristics: string[];
   maxPrice?: number;
   minDiscountPct?: number;
 } {
@@ -157,6 +179,7 @@ export function profileToFilterPatch(p: ShopperProfile): {
     preferredBrands: p.preferredBrands,
     excludedBrands: p.excludedBrands,
     preferredSellers: p.preferredSellers,
+    excludedCharacteristics: profileGenderExclusions(p),
     ...(p.maxPrice != null ? { maxPrice: p.maxPrice } : {}),
     ...(p.minDiscountPct != null ? { minDiscountPct: p.minDiscountPct } : {}),
   };

@@ -68,6 +68,24 @@ services:
         limits: { memory: 1536m, cpus: "1.5" }
     logging: *logging
 
+  bot:
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    image: marjane-deals-watcher-worker:latest
+    command: ["node", "dist/bot.js"]
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      WORKER_ID: bot-1
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    init: true
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 256m }
+    logging: *logging
+
   web:
     build: { context: ., dockerfile: docker/Dockerfile, target: web }
     image: marjane-deals-watcher-web:latest

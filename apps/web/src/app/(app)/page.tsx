@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { BellRing, Plus, RefreshCw, Search, Zap } from "lucide-react";
+import { BellRing, Plus, Search, Zap } from "lucide-react";
 import { getAppSettings, getDb, listCriteria } from "@mdw/database";
 import { profileHighlights, type ShopperProfile } from "@mdw/shared";
 import { telegramConfigFromEnv } from "@mdw/notifications";
-import { SubmitButton } from "@/components/buttons";
+import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
 import { btn, EmptyState } from "@/components/ui";
 import { criteriaSummaries, dashboardStats, flashOffers, weeklyOffers, listDeals, type DealRow, type FlashRow } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
-import { requestRunAction } from "./collectes/actions";
 
 export const metadata = { title: "Bons plans" };
 
@@ -84,11 +83,7 @@ export default async function HomePage() {
             "Aucune vérification des prix pour l'instant."
           )}
         </p>
-        <form action={requestRunAction}>
-          <SubmitButton variant="secondary" pendingLabel="Demandé…">
-            <RefreshCw className="h-4 w-4" aria-hidden /> Vérifier maintenant
-          </SubmitButton>
-        </form>
+        <CheckNowButton />
       </div>
 
       {!telegramReady && (

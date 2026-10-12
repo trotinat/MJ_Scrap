@@ -1,12 +1,11 @@
 import { desc, inArray } from "drizzle-orm";
-import { History, RefreshCw } from "lucide-react";
+import { History } from "lucide-react";
 import { getDb, runRequests } from "@mdw/database";
 import { NoCriteriaBanner } from "@/components/no-criteria-banner";
 import { Badge, EmptyState, PageHeader, type Tone } from "@/components/ui";
-import { SubmitButton } from "@/components/buttons";
+import { CheckNowButton } from "@/components/check-now-button";
 import { listRuns } from "@/lib/queries";
 import { durationLabel, formatMoroccoTime, RUN_TRIGGER_LABELS } from "@/lib/format";
-import { requestRunAction } from "./actions";
 
 export const metadata = { title: "Collectes" };
 
@@ -35,13 +34,7 @@ export default async function RunsPage() {
       <PageHeader
         title="Collectes"
         description="Les prix sont vérifiés à 09:00 et 18:00 (heure du Maroc), et rattrapés après une coupure."
-        actions={
-          <form action={requestRunAction}>
-            <SubmitButton pendingLabel="Demandé…">
-              <RefreshCw className="h-4 w-4" /> Vérifier maintenant
-            </SubmitButton>
-          </form>
-        }
+        actions={<CheckNowButton variant="primary" />}
       />
       <NoCriteriaBanner />
       {pending[0] && (

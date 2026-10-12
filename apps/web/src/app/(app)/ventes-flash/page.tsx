@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { RefreshCw, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
 import { profileHighlights } from "@mdw/shared";
-import { SubmitButton } from "@/components/buttons";
+import { CheckNowButton } from "@/components/check-now-button";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
 import { flashOffers, flashPages, weeklyOffers, type FlashSort } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
-import { requestRunAction } from "../collectes/actions";
 
 export const metadata = { title: "Offres" };
 
@@ -46,11 +45,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
         title="Offres du moment"
         description={isWeek ? "Les meilleures remises vues ces 7 derniers jours sur les pages promo de Marjane Mall." : "Tout ce qu'affiche cette page promo de Marjane Mall, même hors de vos recherches."}
         actions={
-          <form action={requestRunAction}>
-            <SubmitButton variant="secondary" pendingLabel="Demandé…">
-              <RefreshCw className="h-4 w-4" /> Vérifier maintenant
-            </SubmitButton>
-          </form>
+          <CheckNowButton />
         }
       />
 

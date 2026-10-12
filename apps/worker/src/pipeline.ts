@@ -1,11 +1,13 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type pg from "pg";
 import {
+  countActiveSubscribers,
   dealMatches,
   getAppSettings,
   listingCrawls,
   getNotificationSettings,
   listCriteria,
+  listUserCriterionIds,
   productOffers,
   scrapingErrors,
   scrapingRuns,
@@ -18,7 +20,7 @@ import {
   type RunTrigger,
 } from "@mdw/database";
 import { AccessBlockedError, detectBrand, extractModelRef, RobotsDisallowedError, type SiteAdapter } from "@mdw/scraper";
-import { decideNotification, evaluate, type PreviousMatchState } from "@mdw/scoring";
+import { decideNotification, evaluate, USER_NOTIFY_EVENTS, type PreviousMatchState } from "@mdw/scoring";
 import { anyPhraseMatches, madToCents, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { enqueueNotification, formatDealMessage, processOutbox, type TelegramClient } from "@mdw/notifications";
 import { applyMissingPolicy, markOfferGone, saveObservation, type OfferObservation } from "./persist";
@@ -214,8 +216,10 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
 
   if (status !== "failed" && errors.length > 0) status = "partial";
 
-  // Deliver alerts queued by this run (and any pending retries).
-  if (deps.telegram) {
+  // Deliver alerts queued by this run (and any pending retries). When the
+  // Telegram bot has active subscribers, it owns delivery, so the worker's own
+  // env-chat delivery stands down to avoid sending every alert twice.
+  if (deps.telegram && (await countActiveSubscribers(db)) === 0) {
     try {
       const ns = await getNotificationSettings(db);
       const settings = await getAppSettings(db);
@@ -260,6 +264,9 @@ async function collect(
 ): Promise<AccessBlockedError | RobotsDisallowedError | null> {
   const { db, adapter } = deps;
   let blocked: AccessBlockedError | RobotsDisallowedError | null = null;
+  // Only the user's own searches trigger alerts; recommended/promo criteria are
+  // still evaluated (dashboard) but never notify.
+  const userCriterionIds = await listUserCriterionIds(db);
 
   /* 1. Discover listings ---------------------------------------------------- */
   const dealPaths = new Set(settings.dealPagePaths);
@@ -370,14 +377,22 @@ async function collect(
           : null;
         if (ev.isMatch) stats.matches!++;
 
-        const decision = decideNotification(criterion, ev, prev, {
-          offerId: saved.offerId,
-          priceCents: obs.priceCents,
-          previousPriceCents: saved.previous.priceCents,
-          previousStock: saved.previous.stock,
-          currentStock: saved.matchable.stock,
-          observationKey: String(saved.observationId),
-        });
+        const decision = userCriterionIds.has(criterion.id)
+          ? decideNotification(
+              criterion,
+              ev,
+              prev,
+              {
+                offerId: saved.offerId,
+                priceCents: obs.priceCents,
+                previousPriceCents: saved.previous.priceCents,
+                previousStock: saved.previous.stock,
+                currentStock: saved.matchable.stock,
+                observationKey: String(saved.observationId),
+              },
+              USER_NOTIFY_EVENTS,
+            )
+          : null;
 
         let notified = false;
         if (decision) {

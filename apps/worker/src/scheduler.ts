@@ -1,6 +1,7 @@
 import { Cron } from "croner";
 import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import {
+  countActiveSubscribers,
   getNotificationSettings,
   getAppSettings,
   purgeExpiredSessions,
@@ -142,6 +143,8 @@ export class Scheduler {
       const ns = await getNotificationSettings(this.baseDeps.db);
       const app = await getAppSettings(this.baseDeps.db);
       if (!ns.enabled || !app.notificationsEnabled) return;
+      // The Telegram bot owns delivery when it has subscribers (see pipeline).
+      if ((await countActiveSubscribers(this.baseDeps.db)) > 0) return;
       await processOutbox(this.baseDeps.db, this.baseDeps.telegram, {
         limit: 20,
         maxAttempts: ns.maxAttempts,

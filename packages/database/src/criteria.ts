@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, FASHION_CRITERIA, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
 import { applicationSettings, searchCriteria } from "./schema";
@@ -34,7 +34,11 @@ export async function getCriterion(db: DbOrTx, id: string): Promise<Criterion | 
   return rows[0] ? rowToCriterion(rows[0]) : null;
 }
 
-export async function createCriterion(db: DbOrTx, input: CriterionInputRaw): Promise<Criterion> {
+export async function createCriterion(
+  db: DbOrTx,
+  input: CriterionInputRaw,
+  origin: "user" | "recommended" = "user",
+): Promise<Criterion> {
   const v = criterionInputSchema.parse(input);
   const [row] = await db
     .insert(searchCriteria)
@@ -45,10 +49,34 @@ export async function createCriterion(db: DbOrTx, input: CriterionInputRaw): Pro
       notifyMode: v.notifyMode,
       notifyMinScore: v.notifyMinScore,
       minPriceDropPct: v.minPriceDropPct,
+      origin,
       filters: v.filters,
     })
     .returning();
   return rowToCriterion(row!);
+}
+
+/**
+ * Ids of the user's own enabled searches (origin = "user"). Only these trigger
+ * Telegram alerts; the seeded recommended/promo criteria feed the dashboard but
+ * never notify.
+ */
+export async function listUserCriterionIds(db: DbOrTx): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: searchCriteria.id })
+    .from(searchCriteria)
+    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true)));
+  return new Set(rows.map((r) => r.id));
+}
+
+/** The user's own searches (enabled, origin = "user"), e.g. for the bot's /recherches command. */
+export async function listUserCriteria(db: DbOrTx): Promise<Criterion[]> {
+  const rows = await db
+    .select()
+    .from(searchCriteria)
+    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true)))
+    .orderBy(asc(searchCriteria.createdAt));
+  return rows.map(rowToCriterion);
 }
 
 export async function updateCriterion(db: DbOrTx, id: string, input: CriterionInputRaw): Promise<Criterion | null> {
@@ -111,7 +139,7 @@ export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean
   let added = 0;
   for (const c of RECOMMENDED_CRITERIA) {
     if (existing.has(c.name.trim().toLowerCase())) continue;
-    await createCriterion(db, c);
+    await createCriterion(db, c, "recommended");
     added++;
   }
   await db
@@ -135,7 +163,7 @@ export async function seedFashionCriteria(db: DbOrTx): Promise<number> {
   let added = 0;
   for (const c of FASHION_CRITERIA) {
     if (existing.has(c.name.trim().toLowerCase())) continue;
-    await createCriterion(db, c);
+    await createCriterion(db, c, "recommended");
     added++;
   }
   await db.insert(applicationSettings).values({ key: FLAG, value: { at: new Date().toISOString(), added } }).onConflictDoNothing();

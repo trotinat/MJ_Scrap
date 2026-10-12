@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { RefreshCw, Sparkles, Tag } from "lucide-react";
+import { Sparkles, Tag } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
 import { DESTOCKAGE_PATHS, profileHighlights, profileIsEmpty, type ShopperProfile } from "@mdw/shared";
-import { SubmitButton } from "@/components/buttons";
+import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { flashOffers, flashPages, weeklyOffers, type FlashRow, type FlashSort } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
-import { requestRunAction } from "../collectes/actions";
 
 export const metadata = { title: "Déstockage" };
 
@@ -91,11 +90,7 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
         title="Déstockage & prix cassés"
         description="Les prix cassés de Marjane Mall, lus directement sur leurs pages déstockage — en dehors de vos recherches. Ce qui correspond à votre profil est mis en avant."
         actions={
-          <form action={requestRunAction}>
-            <SubmitButton variant="secondary" pendingLabel="Demandé…">
-              <RefreshCw className="h-4 w-4" /> Vérifier maintenant
-            </SubmitButton>
-          </form>
+          <CheckNowButton />
         }
       />
 

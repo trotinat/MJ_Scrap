@@ -3,6 +3,13 @@ import type { Evaluation } from "./evaluate";
 
 export type DealEvent = "new_match" | "target_reached" | "price_drop" | "back_in_stock" | "exceptional";
 
+/**
+ * The only events that reach Telegram for the user's own searches: a new match
+ * and price changes (a drop, or the target price being reached). Restock and
+ * "exceptional" transitions are intentionally kept out of the alerts.
+ */
+export const USER_NOTIFY_EVENTS: readonly DealEvent[] = ["new_match", "price_drop", "target_reached"];
+
 /** Previous state of the (criterion, offer) pair, as stored in deal_matches. */
 export interface PreviousMatchState {
   isMatch: boolean;
@@ -51,6 +58,8 @@ export function decideNotification(
   evaluation: Evaluation,
   prev: PreviousMatchState | null,
   t: OfferTransition,
+  /** When set, only these event kinds may fire (on top of the criterion's own notifyMode). */
+  restrictTo?: readonly DealEvent[],
 ): NotificationDecision | null {
   if (!evaluation.isMatch) return null;
   const events: DealEvent[] = [];
@@ -99,7 +108,8 @@ export function decideNotification(
     reasons.push("produit de nouveau en stock");
   }
 
-  const allowed = events.filter((e) => MODE_ALLOWS[criterion.notifyMode](e, evaluation));
+  const restrict = restrictTo ? new Set(restrictTo) : null;
+  const allowed = events.filter((e) => MODE_ALLOWS[criterion.notifyMode](e, evaluation) && (!restrict || restrict.has(e)));
   if (allowed.length === 0) return null;
   allowed.sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b));
   const event = allowed[0]!;
