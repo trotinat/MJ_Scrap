@@ -9,12 +9,13 @@ import {
   createCriterion,
   deleteCriterion,
   duplicateCriterion,
+  getAppSettings,
   getDb,
   runRequests,
   setCriterionEnabled,
   updateCriterion,
 } from "@mdw/database";
-import { criterionInputSchema, EXAMPLE_CRITERIA, sitePathSchema } from "@mdw/shared";
+import { buildProfilePaths, criterionInputSchema, EXAMPLE_CRITERIA, profileToFilterPatch, sitePathSchema } from "@mdw/shared";
 import type { FormState } from "@/components/criterion-form";
 import { requireUser } from "@/lib/session";
 
@@ -117,6 +118,56 @@ export async function quickAddFromUrlAction(_prev: QuickAddState, formData: Form
     notifyMode: "all",
     notifyMinScore: 50,
     filters: { categoryPaths: [path], includedBrands: brand ? [brand] : [] },
+  });
+  const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
+  if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
+  revalidatePath("/criteres");
+  revalidatePath("/collectes");
+  redirect(`/criteres/${c.id}?ajout=1`);
+}
+
+const quickCategoriesSchema = z.object({
+  name: z.string().trim().max(120).optional(),
+  keywords: z.string().trim().max(200).optional(),
+  paths: z.array(sitePathSchema).min(1),
+  useProfile: z.boolean().optional(),
+});
+
+/**
+ * "Parcourir les rayons" : creates a criterion from categories picked in the
+ * visual browser (no URL to paste), then asks the worker to collect right away.
+ */
+export async function quickAddFromCategoriesAction(_prev: QuickAddState, formData: FormData): Promise<QuickAddState> {
+  const user = await requireUser();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("payload") ?? "{}"));
+  } catch {
+    return { error: "Formulaire invalide." };
+  }
+  const parsed = quickCategoriesSchema.safeParse(raw);
+  if (!parsed.success) return { error: "Choisissez au moins un rayon à surveiller." };
+  const keywords = (parsed.data.keywords ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const lastSeg = parsed.data.paths[0]!.split("?")[0]!.split("/").filter(Boolean).pop() ?? "Marjane Mall";
+  const name = parsed.data.name?.trim() || keywords[0] || titleCase(lastSeg);
+
+  const db = getDb();
+  // Apply the shopper profile: fashion facets into the listing URL, brands /
+  // sellers / budget into the criterion's own filters.
+  let paths = parsed.data.paths;
+  let profilePatch = {};
+  if (parsed.data.useProfile) {
+    const { shopperProfile } = await getAppSettings(db);
+    paths = [...new Set(paths.flatMap((p) => buildProfilePaths(p, shopperProfile)))].slice(0, 10);
+    profilePatch = profileToFilterPatch(shopperProfile);
+  }
+  const c = await createCriterion(db, {
+    name,
+    description: keywords.length ? `Recherche « ${keywords.join(", ")} »` : "",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 50,
+    filters: { categoryPaths: paths, keywords, ...profilePatch },
   });
   const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
   if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });

@@ -6,3 +6,5 @@ export * from "./schedule";
 export * from "./specs";
 export * from "./types";
 export * from "./site";
+export * from "./profile";
+export * from "./media";

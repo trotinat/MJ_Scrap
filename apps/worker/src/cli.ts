@@ -12,8 +12,11 @@ import {
   runMigrations,
   saveAppSettings,
   seedRecommendedCriteria,
+  seedFashionCriteria,
+  seedDefaultProfile,
   upgradeRecommendedCriteria,
   upgradeDealPages,
+  upgradeDestockagePages,
   setUserPassword,
 } from "@mdw/database";
 import { configureProxyFromEnv, MarjaneAdapter, parseListingHtml, parseProductPage } from "@mdw/scraper";
@@ -67,6 +70,10 @@ async function main() {
         if (added) logger.info({ added }, "critères recommandés ajoutés");
         if (await upgradeRecommendedCriteria(db)) logger.info("critère Adidas Homme : exclusions enfants complétées");
         if (await upgradeDealPages(db)) logger.info("pages de deals ajoutées (deals de l'automne, moins de 200 DH)");
+        if (await upgradeDestockagePages(db)) logger.info("pages de déstockage ajoutées (mode-sport, high-tech, maison, beauté)");
+        const fashion = await seedFashionCriteria(db);
+        if (fashion) logger.info({ added: fashion }, "recherches mode homme ajoutées (hauts, pantalons, chaussures)");
+        if (await seedDefaultProfile(db)) logger.info("profil de départ renseigné (Homme, pointure 42, taille M, pantalon 32/33)");
         if ((await countUsers(db)) === 0) {
           if (config.ADMIN_EMAIL && config.ADMIN_PASSWORD) {
             await createUser(db, config.ADMIN_EMAIL, config.ADMIN_PASSWORD);
@@ -144,6 +151,7 @@ async function probe(config: ReturnType<typeof loadConfig>, args: string[]) {
     respectRobots: config.RESPECT_ROBOTS ?? true,
     renderMode: config.RENDER_MODE,
     renderTimeoutMs: config.RENDER_TIMEOUT_MS,
+    renderChannel: config.RENDER_BROWSER_CHANNEL,
   });
   let failures = 0;
   const productUrls: string[] = [];
@@ -151,16 +159,18 @@ async function probe(config: ReturnType<typeof loadConfig>, args: string[]) {
   try {
     for (const p of paths) {
       console.log(`\n=== Liste ${p}`);
+      // File-safe slug: drop the query string and any character illegal on Windows.
+      const slug = p.split("?")[0]!.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
       try {
         const raw = await adapter.fetchRaw(`https://www.marjanemall.ma${p}`);
-        const file = path.join(outDir, `${stamp}_listing${p.replace(/\//g, "_")}.html`);
+        const file = path.join(outDir, `${stamp}_listing_${slug}.html`);
         await writeFile(file, raw.body);
         const httpItems = parseListingHtml(raw.body, p);
         console.log(`HTTP ${raw.status} — ${httpItems.length} produits extraits du HTML serveur (${file})`);
         let items = httpItems;
         if (httpItems.length === 0 && config.RENDER_MODE !== "never") {
           const html = await adapter.renderRaw(`https://www.marjanemall.ma${p}`, 2);
-          const rfile = path.join(outDir, `${stamp}_rendered${p.replace(/\//g, "_")}.html`);
+          const rfile = path.join(outDir, `${stamp}_rendered_${slug}.html`);
           await writeFile(rfile, html);
           items = parseListingHtml(html, p);
           console.log(`Rendu navigateur — ${items.length} produits extraits (${rfile})`);

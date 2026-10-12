@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sitePathSchema } from "./criteria";
+import { shopperProfileSchema } from "./profile";
 
 export const scoreWeightsSchema = z.object({
   price: z.number().min(0).max(100).default(30),
@@ -26,7 +27,19 @@ export type ScoreThresholds = z.infer<typeof scoreThresholdsSchema>;
 
 export const appSettingsSchema = z.object({
   /** Promotion pages scanned on every run in addition to criteria categories. */
-  dealPagePaths: z.array(sitePathSchema).max(20).default(["/ventes-flash", "/destockage", "/les-deals-de-l-automne", "/tout-a-moins-de-200-dh"]),
+  dealPagePaths: z
+    .array(sitePathSchema)
+    .max(20)
+    .default([
+      "/ventes-flash",
+      "/destockage",
+      "/destockage/mode-sport",
+      "/destockage/high-tech",
+      "/destockage/maison",
+      "/destockage/beaute",
+      "/les-deals-de-l-automne",
+      "/tout-a-moins-de-200-dh",
+    ]),
   maxListingPagesPerPath: z.number().int().min(1).max(20).default(4),
   maxDetailFetchesPerRun: z.number().int().min(0).max(1000).default(40),
   requestDelayMs: z.number().int().min(1000).max(60000).default(3000),
@@ -37,6 +50,8 @@ export const appSettingsSchema = z.object({
   weights: scoreWeightsSchema.default({}),
   thresholds: scoreThresholdsSchema.default({}),
   notificationsEnabled: z.boolean().default(true),
+  /** The shopper's characteristics (sizes, genre, budget…), applied to searches. */
+  shopperProfile: shopperProfileSchema,
 });
 export type AppSettings = z.infer<typeof appSettingsSchema>;
 

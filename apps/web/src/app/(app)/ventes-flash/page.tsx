@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RefreshCw, Zap } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
+import { profileHighlights } from "@mdw/shared";
 import { SubmitButton } from "@/components/buttons";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
@@ -76,8 +77,8 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
         <>
           <form method="get" className="mb-4 flex flex-wrap items-center gap-2">
             <input type="hidden" name="page" value={current} />
-            <input name="q" type="search" defaultValue={sp.q} placeholder="Rechercher…" className={cx(input, "min-w-0 flex-1 basis-40 sm:max-w-xs")} aria-label="Recherche" />
-            <select name="sort" defaultValue={sort} className={cx(input, "w-auto min-w-0 flex-1 basis-40 sm:flex-none")} aria-label="Tri">
+            <input name="q" type="search" defaultValue={sp.q} placeholder="Rechercher…" className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:max-w-xs")} aria-label="Recherche" />
+            <select name="sort" defaultValue={sort} className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:flex-none")} aria-label="Tri">
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -85,7 +86,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
               ))}
             </select>
             <button type="submit" className={btn.primary}>
-              OK
+              Filtrer
             </button>
             <span className="w-full text-xs text-ink-mute sm:ml-auto sm:w-auto" title={formatMoroccoTime(crawl.last_success_at)}>
               {rows.length} offres, vérifiées {relativeTime(crawl.last_success_at)}
@@ -112,6 +113,10 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
                     minPriceCents: r.min_price_cents,
                     firstSeenAt: r.first_seen_at,
                     matches: r.matches,
+                    highlights: profileHighlights(
+                      { brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct },
+                      settings.shopperProfile,
+                    ),
                   }}
                 />
               ))}

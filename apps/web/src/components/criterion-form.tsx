@@ -13,6 +13,7 @@ import {
   type SpecRule,
 } from "@mdw/shared";
 import { TagInput } from "./tag-input";
+import { CategoryPicker } from "./category-picker";
 import { SubmitButton } from "./buttons";
 import { btn, Card, Field, input } from "./ui";
 
@@ -128,15 +129,23 @@ export function CriterionForm({
       <Card title="Où et quoi chercher">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="Catégories à surveiller (chemins du site)" hint="Choisissez une suggestion ou collez une URL Marjane Mall, filtres compris (pointure, genre, livraison express…). Une URL filtrée est toujours ouverte dans le navigateur headless, car le site applique ces filtres en JavaScript." error={e["filters.categoryPaths"]}>
-              <TagInput
-                value={f.categoryPaths}
-                onChange={(v) => setF({ categoryPaths: v })}
-                placeholder="/tv-son-photo/tv-home-cinema/televiseur"
-                suggestions={CATEGORY_SUGGESTIONS.map((c) => ({ value: c.path, label: c.label }))}
-                ariaLabel="Catégories"
-              />
-            </Field>
+            <p className="mb-1 block text-sm font-medium text-ink">Rayons à surveiller</p>
+            <p className="mb-2 text-xs text-ink-mute">Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche n&apos;a rien à parcourir.</p>
+            <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+            {e["filters.categoryPaths"] && <p className="mt-1 text-xs text-promo">{e["filters.categoryPaths"]}</p>}
+            <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium text-ink-soft">Coller une URL ou un chemin exact (filtres pointure, genre…)</summary>
+              <div className="mt-2">
+                <TagInput
+                  value={f.categoryPaths}
+                  onChange={(v) => setF({ categoryPaths: v })}
+                  placeholder="https://www.marjanemall.ma/boutique-officielle/adidas?maas_46800=42"
+                  suggestions={CATEGORY_SUGGESTIONS.map((c) => ({ value: c.path, label: c.label }))}
+                  ariaLabel="Catégories"
+                />
+                <p className="mt-1 text-xs text-ink-mute">Une URL filtrée est ouverte dans le navigateur headless, car le site applique ces filtres en JavaScript.</p>
+              </div>
+            </details>
           </div>
           <Field label="Mots-clés" hint="Au moins un doit apparaître dans le titre." error={e["filters.keywords"]}>
             <TagInput value={f.keywords} onChange={(v) => setF({ keywords: v })} placeholder="TV 4K, Smart TV" ariaLabel="Mots-clés" />

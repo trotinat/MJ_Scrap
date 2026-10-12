@@ -1,5 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
-import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
+import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, FASHION_CRITERIA, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
 import { applicationSettings, searchCriteria } from "./schema";
 import { getAppSettings } from "./settings";
@@ -118,6 +118,27 @@ export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean
     .insert(applicationSettings)
     .values({ key: FLAG, value: { at: new Date().toISOString(), added } })
     .onConflictDoNothing();
+  return added;
+}
+
+/**
+ * One-time: add the men's fashion searches (hauts, pantalons, chaussures) by
+ * name if missing. Its own flag means it seeds once per database, including on
+ * databases that already ran the first recommended-criteria seed, and criteria
+ * the user later deletes are not re-created.
+ */
+export async function seedFashionCriteria(db: DbOrTx): Promise<number> {
+  const FLAG = "fashion_criteria_v1";
+  const done = await db.select({ key: applicationSettings.key }).from(applicationSettings).where(eq(applicationSettings.key, FLAG)).limit(1);
+  if (done.length > 0) return 0;
+  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria)).map((r) => r.name.trim().toLowerCase()));
+  let added = 0;
+  for (const c of FASHION_CRITERIA) {
+    if (existing.has(c.name.trim().toLowerCase())) continue;
+    await createCriterion(db, c);
+    added++;
+  }
+  await db.insert(applicationSettings).values({ key: FLAG, value: { at: new Date().toISOString(), added } }).onConflictDoNothing();
   return added;
 }
 

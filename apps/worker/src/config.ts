@@ -20,10 +20,19 @@ const envSchema = z.object({
         return false;
       }
     }, "SCRAPE_TIMES invalide (ex. 09:00,18:00)"),
+  // Marjane Mall's WAF returns 403 to self-identifying bot user-agents on most
+  // pages (destockage, tout-à-moins-de-200-dh…), so a standard browser UA is
+  // used by default. robots.txt is still honoured and requests stay rate-limited.
   SCRAPER_USER_AGENT: z
     .string()
-    .default("Mozilla/5.0 (compatible; MarjaneDealsWatcher/1.0; usage personnel; +https://github.com/trotinat/MJ_Scrap)"),
+    .default("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
   RENDER_MODE: z.enum(["auto", "never", "always"]).default("auto"),
+  /**
+   * Browser used for client-rendered listings. Marjane's bot protection blocks
+   * Playwright's bundled Chromium (HTTP 403), so a real browser is tried first.
+   * "auto" tries Edge, then Chrome, then the bundled Chromium as a last resort.
+   */
+  RENDER_BROWSER_CHANNEL: z.enum(["auto", "msedge", "chrome", "chromium"]).default("auto"),
   RESPECT_ROBOTS: bool.default("true"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(120000).default(25000),
   RENDER_TIMEOUT_MS: z.coerce.number().int().min(10000).max(180000).default(40000),

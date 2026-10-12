@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { cx, ProductImage } from "./ui";
+import { deriveGallery, type Highlight } from "@mdw/shared";
+import { cx } from "./ui";
+import { ProductGallery } from "./product-gallery";
 import { formatMad } from "@/lib/format";
 
 export interface DealCardData {
@@ -17,6 +19,8 @@ export interface DealCardData {
   firstSeenAt: Date | string | null;
   matches?: { id: string; name: string }[];
   status?: string;
+  /** Profile / promo badges computed upstream from the shopper profile. */
+  highlights?: Highlight[];
 }
 
 const DAY = 24 * 3600_000;
@@ -39,10 +43,13 @@ function shortMad(cents: number): string {
 export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; size?: "md" | "lg"; compareForm?: string }) {
   const f = dealFacts(d);
   const big = size === "lg";
+  const gallery = deriveGallery(d.imageUrl, 2);
+  const profileTags = (d.highlights ?? []).filter((h) => h.tone === "profile");
   return (
     <article
       className={cx(
-        "group relative flex flex-col overflow-hidden rounded-2xl border border-paper-line bg-paper-card",
+        "group relative flex flex-col overflow-hidden rounded-2xl border bg-paper-card card-soft transition duration-200 hover:-translate-y-1",
+        profileTags.length > 0 ? "border-tag-deep/60 ring-1 ring-tag-deep/30" : "border-paper-line hover:border-tag-deep/40",
         big && "sm:flex-row",
         d.status && d.status !== "active" && "opacity-60",
       )}
@@ -52,25 +59,37 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         className={cx("relative block bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep", big && "sm:w-1/2 sm:shrink-0")}
         aria-label={d.title}
       >
-        <ProductImage src={d.imageUrl} alt="" className={cx("w-full p-3", big ? "aspect-[4/3] sm:aspect-square" : "aspect-square")} />
+        <ProductGallery images={gallery} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-square" : "aspect-square")} />
         {d.discountPct !== null && d.discountPct > 0 && (
           <span
-            className="num absolute right-2 top-2 rounded-full bg-promo px-2.5 py-1 font-display text-sm font-bold text-white"
+            className="num absolute left-2 top-2 rounded-lg bg-promo px-2 py-1 font-display text-sm font-extrabold text-white shadow-sm"
             title="Remise annoncée par Marjane Mall"
           >
             -{Math.round(d.discountPct)}%
           </span>
         )}
-        {(f.isNew || f.lowest) && (
-          <span className={cx("absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold", f.lowest ? "bg-proof text-white" : "bg-ink text-tag")}>
-            {f.lowest ? "Prix le plus bas relevé" : "Nouveau"}
+        {profileTags.length > 0 && (
+          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-tag px-2 py-0.5 text-[11px] font-bold text-forest shadow-sm">
+            ★ Pour vous
           </span>
+        )}
+        {f.lowest && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-proof px-2 py-0.5 text-xs font-semibold text-white">Prix le plus bas relevé</span>
         )}
       </Link>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-4 sm:p-5" : "p-3")}>
+        {profileTags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {profileTags.slice(0, 3).map((h) => (
+              <span key={h.label} className="rounded-full bg-tag-soft px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-tag-deep/30">
+                {h.label}
+              </span>
+            ))}
+          </div>
+        )}
         {d.brand && <p className="truncate text-xs font-medium text-ink-mute">{d.brand}</p>}
-        <Link href={`/produits/${d.offerId}`} className={cx("font-medium leading-snug text-ink hover:underline", big ? "line-clamp-3 font-display text-xl font-semibold" : "line-clamp-2 text-sm")}>
+        <Link href={`/produits/${d.offerId}`} className={cx("font-medium leading-snug text-ink hover:underline", big ? "line-clamp-3 font-display text-xl font-semibold" : "line-clamp-2 min-h-[2.5rem] text-sm font-semibold")}>
           {d.title}
         </Link>
 
@@ -86,7 +105,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
 
         {(f.saving || f.dropped) && (
           <div className="num space-y-0.5 text-xs">
-            {f.saving && <p className="font-semibold text-ink">{shortMad(f.saving)} DH d'économie</p>}
+            {f.saving && <p className="font-semibold text-proof">Vous économisez {shortMad(f.saving)} DH</p>}
             {f.dropped && (
               <p className="font-semibold text-proof" title="Calculé sur nos propres relevés de prix">
                 -{f.dropPct}% depuis le dernier relevé
@@ -115,9 +134,9 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
           href={d.url}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="mt-1 inline-flex items-center gap-1 self-start text-xs font-semibold text-ink-soft hover:text-ink"
+          className="mt-2 inline-flex items-center justify-center gap-1 rounded-full border border-paper-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-ink hover:bg-ink hover:text-white"
         >
-          Voir sur Marjane Mall <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+          Voir l'offre <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
         </a>
       </div>
     </article>

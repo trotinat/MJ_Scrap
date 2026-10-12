@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Bell, History, LineChart, MoreHorizontal, Search, Settings, ShieldCheck, Tag, X, Zap, Home } from "lucide-react";
+import { ShoppingBag, Bell, History, LineChart, MoreHorizontal, Percent, Search, Settings, ShieldCheck, Tag, UserCog, X, Zap, Home } from "lucide-react";
 import { cx } from "./ui";
 
 /** What people come for, in the order they use it. */
 const PRIMARY = [
-  { href: "/", label: "Bons plans", icon: Home },
-  { href: "/ventes-flash", label: "Offres", icon: Zap },
+  { href: "/", label: "Accueil", icon: Home },
+  { href: "/ventes-flash", label: "Promos", icon: Zap },
   { href: "/criteres", label: "Recherches", icon: Search },
   { href: "/notifications", label: "Alertes", icon: Bell },
 ];
 /** Tools and maintenance. */
 const SECONDARY = [
-  { href: "/promotions", label: "Offres trouvées", icon: Tag },
+  { href: "/profil", label: "Mon profil", icon: UserCog },
+  { href: "/destockage", label: "Déstockage", icon: Percent },
+  { href: "/promotions", label: "Résultats", icon: Tag },
   { href: "/historique-prix", label: "Historique des prix", icon: LineChart },
   { href: "/collectes", label: "Collectes", icon: History },
   { href: "/parametres", label: "Paramètres", icon: Settings },
@@ -29,41 +31,48 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const secondaryActive = SECONDARY.some((l) => isActive(l.href));
 
-  const brand = (
-    <Link href="/" className="flex items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-tag text-ink">
-        <Activity className="h-5 w-5" aria-hidden />
+  const brand = (dark: boolean) => (
+    <Link href="/" className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-tag">
+      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tag text-forest shadow-sm">
+        <ShoppingBag className="h-5 w-5" aria-hidden />
       </span>
-      <span className="font-display text-lg font-bold leading-none text-ink">
+      <span className={cx("font-display text-xl font-semibold leading-none", dark ? "text-white" : "text-ink")}>
         Bons plans
-        <span className="block text-xs font-medium text-ink-mute">Marjane Mall</span>
+        <span className={cx("mt-1 block font-sans text-[11px] font-medium uppercase tracking-wider", dark ? "text-white/55" : "text-ink-mute")}>Marjane Mall</span>
       </span>
     </Link>
   );
 
-  const item = ({ href, label, icon: Icon }: (typeof PRIMARY)[number]) => (
+  const item = (dark: boolean) => ({ href, label, icon: Icon }: (typeof PRIMARY)[number]) => (
     <Link
       key={href}
       href={href}
       aria-current={isActive(href) ? "page" : undefined}
       className={cx(
-        "flex items-center gap-3 rounded-xl px-3 py-2 text-[0.95rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep",
-        isActive(href) ? "bg-ink font-semibold text-white" : "text-ink-soft hover:bg-paper hover:text-ink",
+        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.92rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-tag",
+        dark
+          ? isActive(href)
+            ? "bg-white/10 font-semibold text-white"
+            : "text-white/70 hover:bg-white/5 hover:text-white"
+          : isActive(href)
+            ? "bg-ink font-semibold text-white"
+            : "text-ink-soft hover:bg-paper hover:text-ink",
       )}
     >
-      <Icon className={cx("h-[18px] w-[18px]", isActive(href) && "text-tag")} aria-hidden />
+      {dark && isActive(href) && <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-tag" aria-hidden />}
+      <Icon className={cx("h-[18px] w-[18px]", isActive(href) && (dark ? "text-tag" : "text-tag"))} aria-hidden />
       {label}
     </Link>
   );
 
-  const account = (
-    <div className="px-3 text-xs text-ink-mute">
+  const account = (dark: boolean) => (
+    <div className={cx("px-3 text-xs", dark ? "text-white/60" : "text-ink-mute")}>
       <p className="truncate" title={email}>
         {email}
       </p>
       {logout ? (
         <form action={logout}>
-          <button type="submit" className="mt-1 font-medium text-ink-soft hover:text-ink">
+          <button type="submit" className={cx("mt-1 font-medium", dark ? "text-white/80 hover:text-white" : "text-ink-soft hover:text-ink")}>
             Se déconnecter
           </button>
         </form>
@@ -75,22 +84,22 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
 
   return (
     <>
-      {/* Desktop: quiet rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-paper-line bg-paper-card lg:flex">
-        <div className="px-5 pb-4 pt-5">{brand}</div>
+      {/* Desktop: dark forest rail */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-forest lg:flex">
+        <div className="px-6 pb-6 pt-7">{brand(true)}</div>
         <nav className="flex flex-col gap-1 px-3" aria-label="Navigation principale">
-          {PRIMARY.map(item)}
+          {PRIMARY.map(item(true))}
         </nav>
-        <p className="mt-6 px-6 pb-1 text-xs font-medium text-ink-mute">Outils</p>
+        <p className="mt-8 px-6 pb-2 text-[11px] font-semibold uppercase tracking-widest text-white/35">Outils</p>
         <nav className="flex flex-col gap-0.5 px-3" aria-label="Outils">
-          {SECONDARY.map(item)}
+          {SECONDARY.map(item(true))}
         </nav>
-        <div className="mt-auto border-t border-paper-line py-4">{account}</div>
+        <div className="mt-auto border-t border-forest-line py-4">{account(true)}</div>
       </aside>
 
       {/* Mobile: top bar with brand, bottom tab bar with the main sections */}
       <header className="sticky top-0 z-30 flex h-14 items-center border-b border-paper-line bg-paper-card/95 px-4 backdrop-blur lg:hidden">
-        {brand}
+        {brand(false)}
       </header>
       <nav
         className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-paper-line bg-paper-card pb-[env(safe-area-inset-bottom)] lg:hidden"
@@ -101,7 +110,7 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
             key={href}
             href={href}
             aria-current={isActive(href) ? "page" : undefined}
-            className={cx("flex flex-col items-center gap-0.5 py-2 text-[11px]", isActive(href) ? "font-semibold text-ink" : "text-ink-mute")}
+            className={cx("flex flex-col items-center gap-0.5 py-2 text-[11px] leading-tight", isActive(href) ? "font-semibold text-ink" : "text-ink-mute")}
           >
             <span className={cx("rounded-full px-3 py-0.5", isActive(href) && "bg-tag")}>
               <Icon className="h-5 w-5" aria-hidden />
@@ -132,8 +141,8 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="flex flex-col gap-1">{SECONDARY.map(item)}</nav>
-            <div className="mt-4 border-t border-paper-line pt-3">{account}</div>
+            <nav className="flex flex-col gap-1">{SECONDARY.map(item(false))}</nav>
+            <div className="mt-4 border-t border-paper-line pt-3">{account(false)}</div>
           </div>
         </div>
       )}

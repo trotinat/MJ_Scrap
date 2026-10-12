@@ -18,6 +18,7 @@ export async function buildAdapter(db: Db, config: WorkerConfig): Promise<Marjan
     respectRobots: config.RESPECT_ROBOTS ?? true,
     renderMode: config.RENDER_MODE,
     renderTimeoutMs: config.RENDER_TIMEOUT_MS,
+    renderChannel: config.RENDER_BROWSER_CHANNEL,
   });
 }
 

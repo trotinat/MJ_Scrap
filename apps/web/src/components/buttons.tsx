@@ -5,10 +5,10 @@ import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { btn } from "./ui";
 
-export function SubmitButton({ children, variant = "primary", pendingLabel, className }: { children: ReactNode; variant?: keyof typeof btn; pendingLabel?: string; className?: string }) {
+export function SubmitButton({ children, variant = "primary", pendingLabel, className, disabled }: { children: ReactNode; variant?: keyof typeof btn; pendingLabel?: string; className?: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={`${btn[variant]} ${className ?? ""}`}>
+    <button type="submit" disabled={pending || disabled} className={`${btn[variant]} ${className ?? ""}`}>
       {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
       {pending && pendingLabel ? pendingLabel : children}
     </button>

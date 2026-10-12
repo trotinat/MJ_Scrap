@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Copy, Pencil, Plus, Search, Sparkles } from "lucide-react";
-import { getDb, listCriteria } from "@mdw/database";
-import { RECOMMENDED_CRITERIA } from "@mdw/shared";
+import { getAppSettings, getDb, listCriteria } from "@mdw/database";
+import { profileIsEmpty, RECOMMENDED_CRITERIA } from "@mdw/shared";
 import { formatMad, madToCents, NOTIFY_MODE_LABELS } from "@mdw/shared";
 import { Badge, btn, EmptyState, PageHeader } from "@/components/ui";
 import { DeleteButton } from "@/components/delete-button";
@@ -14,7 +14,8 @@ import { QuickAddFromUrl } from "./quick-add";
 export const metadata = { title: "Mes recherches" };
 
 export default async function CriteriaPage() {
-  const [criteria, summaries] = await Promise.all([listCriteria(getDb()), criteriaSummaries()]);
+  const [criteria, summaries, settings] = await Promise.all([listCriteria(getDb()), criteriaSummaries(), getAppSettings(getDb())]);
+  const hasProfile = !profileIsEmpty(settings.shopperProfile);
   const names = new Set(criteria.map((c) => c.name.trim().toLowerCase()));
   const missingPresets = RECOMMENDED_CRITERIA.filter((c) => !names.has(c.name.trim().toLowerCase()));
   return (
@@ -29,7 +30,7 @@ export default async function CriteriaPage() {
         }
       />
       <div className="mb-6">
-        <QuickAddFromUrl />
+        <QuickAddFromUrl hasProfile={hasProfile} />
       </div>
       {missingPresets.length > 0 && (
         <div className="mb-6 rounded-xl border border-brand-100 bg-brand-50 p-4">

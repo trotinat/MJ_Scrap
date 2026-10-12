@@ -10,6 +10,8 @@ export interface AdapterOptions extends FetcherOptions {
   /** "auto": HTTP first, Playwright when the server HTML has no products. */
   renderMode: "auto" | "never" | "always";
   renderTimeoutMs: number;
+  /** Browser channel for rendering. "auto" tries Edge, Chrome, then bundled Chromium. */
+  renderChannel?: "auto" | "msedge" | "chrome" | "chromium";
 }
 
 export interface ListingResult {
@@ -56,6 +58,7 @@ export class MarjaneAdapter implements SiteAdapter {
         timeoutMs: this.opts.renderTimeoutMs,
         maxPages,
         minDelayMs: this.opts.minDelayMs,
+        channel: this.opts.renderChannel ?? "auto",
       });
     }
     return this.renderer;

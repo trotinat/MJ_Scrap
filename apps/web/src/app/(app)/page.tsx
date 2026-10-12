@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BellRing, Plus, RefreshCw, Search, Zap } from "lucide-react";
 import { getAppSettings, getDb, listCriteria } from "@mdw/database";
+import { profileHighlights, type ShopperProfile } from "@mdw/shared";
 import { telegramConfigFromEnv } from "@mdw/notifications";
 import { SubmitButton } from "@/components/buttons";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
@@ -11,7 +12,7 @@ import { requestRunAction } from "./collectes/actions";
 
 export const metadata = { title: "Bons plans" };
 
-const fromDeal = (d: DealRow): DealCardData => ({
+const fromDeal = (d: DealRow, profile: ShopperProfile): DealCardData => ({
   offerId: d.offer_id,
   title: d.title,
   url: d.url,
@@ -25,9 +26,10 @@ const fromDeal = (d: DealRow): DealCardData => ({
   firstSeenAt: d.first_seen_at,
   matches: d.matches,
   status: d.offer_status,
+  highlights: profileHighlights({ brand: d.brand, title: d.title, seller: d.seller, priceCents: d.current_price_cents, discountPct: d.advertised_discount_pct }, profile),
 });
 
-const fromFlash = (r: FlashRow): DealCardData => ({
+const fromFlash = (r: FlashRow, profile: ShopperProfile): DealCardData => ({
   offerId: r.offer_id,
   title: r.title,
   url: r.url,
@@ -40,6 +42,7 @@ const fromFlash = (r: FlashRow): DealCardData => ({
   minPriceCents: r.min_price_cents,
   firstSeenAt: r.first_seen_at,
   matches: r.matches,
+  highlights: profileHighlights({ brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct }, profile),
 });
 
 /** Time only ("18:00") for today, full date otherwise. */
@@ -91,30 +94,28 @@ export default async function HomePage() {
       {!telegramReady && (
         <Link
           href="/notifications"
-          className="mb-6 flex items-center gap-3 rounded-2xl bg-ink p-4 text-white hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep"
+          className="mb-6 flex items-center gap-3 rounded-xl border border-tag-deep/40 bg-tag-soft px-4 py-2.5 text-sm hover:border-ink-mute focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep"
         >
-          <BellRing className="h-6 w-6 shrink-0 text-tag" aria-hidden />
-          <span className="min-w-0 flex-1">
-            <span className="block font-display font-semibold">Recevez les bons plans sur votre téléphone</span>
-            <span className="block text-sm text-white/75">
-              {waiting > 1 ? `${waiting} alertes attendent d'être envoyées. ` : waiting === 1 ? "Une alerte attend d'être envoyée. " : ""}Activez Telegram en 3 minutes.
-            </span>
+          <BellRing className="h-5 w-5 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 text-ink-soft">
+            <span className="font-semibold text-ink">Recevez les bons plans sur Telegram.</span>{" "}
+            {waiting > 0 ? `${waiting} alerte${waiting > 1 ? "s" : ""} en attente.` : "Activation en 3 minutes."}
           </span>
-          <span className="hidden rounded-full bg-tag px-3 py-1.5 text-sm font-semibold text-ink sm:inline">Activer</span>
+          <span className="shrink-0 rounded-full bg-ink px-3 py-1 text-xs font-semibold text-white">Activer</span>
         </Link>
       )}
 
       {week.length > 0 && (
         <section className="mb-8">
           <div className="mb-3 flex items-end justify-between gap-3">
-            <h2 className="font-display text-[1.75rem] font-extrabold leading-none tracking-tight sm:text-[2.2rem]">Deals de la semaine</h2>
+            <h2 className="font-display text-2xl font-extrabold leading-none tracking-tight sm:text-3xl">Deals de la semaine</h2>
             <Link href="/ventes-flash" className={btn.ghost}>
               Tout voir
             </Link>
           </div>
           <div className={dealGrid}>
             {week.slice(0, 8).map((r) => (
-              <DealCard key={r.offer_id} d={fromFlash(r)} />
+              <DealCard key={r.offer_id} d={fromFlash(r, settings.shopperProfile)} />
             ))}
           </div>
         </section>
@@ -136,7 +137,7 @@ export default async function HomePage() {
             <section className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-stretch">
               <div>
                 <h1 className="mb-3 font-display text-[2rem] font-extrabold leading-none tracking-tight sm:text-[2.6rem]">Le bon plan du moment</h1>
-                <DealCard d={fromDeal(hero)} size="lg" />
+                <DealCard d={fromDeal(hero, settings.shopperProfile)} size="lg" />
               </div>
               <div className="flex flex-col gap-3 lg:pt-[3.4rem]">
                 <div className="grid grid-cols-3 gap-3">
@@ -186,7 +187,7 @@ export default async function HomePage() {
               </div>
               <div className={dealGrid}>
                 {rest.map((d) => (
-                  <DealCard key={d.offer_id} d={fromDeal(d)} />
+                  <DealCard key={d.offer_id} d={fromDeal(d, settings.shopperProfile)} />
                 ))}
               </div>
             </section>
@@ -206,7 +207,7 @@ export default async function HomePage() {
           </div>
           <div className={dealGrid}>
             {flash.slice(0, 8).map((r) => (
-              <DealCard key={r.offer_id} d={fromFlash(r)} />
+              <DealCard key={r.offer_id} d={fromFlash(r, settings.shopperProfile)} />
             ))}
           </div>
         </section>

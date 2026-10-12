@@ -268,3 +268,62 @@ export const RECOMMENDED_CRITERIA: CriterionInputRaw[] = [
     },
   },
 ];
+
+/** Women's / children's products to keep out of a men's fashion search. */
+export const MEN_FASHION_EXCLUSIONS = ["femme", "femmes", "fille", "filles", "enfant", "enfants", "bébé", "bebe", "garçon", "garcon", "junior", "kids", "W"];
+
+/**
+ * Men's fashion searches tuned for the best promos, pre-filtered on the site by
+ * genre (Homme) and the right size facet per garment (taille M for tops,
+ * pointure 42 for shoes). Seeded once via a dedicated migration so they land on
+ * databases that already ran the first recommended-criteria seed. Every path
+ * and size stays editable, and they follow the shopper profile where it is set.
+ */
+export const FASHION_CRITERIA: CriterionInputRaw[] = [
+  {
+    name: "Mode Homme – Hauts en promo (taille M)",
+    description: "T-shirts, polos, sweats et chemises homme en taille M, triés sur les plus fortes remises (≥ 30 %).",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 55,
+    filters: {
+      categoryPaths: [
+        "/vetements-chaussures-bijoux-accessoires/vetements-homme/t-shirts-polos?maas_28003=Homme&taille_master=M",
+        "/vetements-chaussures-bijoux-accessoires/vetements-homme/sweat-shirt-hoodies?maas_28003=Homme&taille_master=M",
+      ],
+      keywords: ["t-shirt", "tee-shirt", "polo", "sweat", "hoodie", "chemise", "pull", "veste"],
+      minDiscountPct: 30,
+      excludedCharacteristics: MEN_FASHION_EXCLUSIONS,
+    },
+  },
+  {
+    name: "Mode Homme – Pantalons & jeans (taille 32/33)",
+    description: "Pantalons et jeans homme (cargo, chino, jogger) en promo. Pré-filtré Homme ; affinez la taille 32/33 sur la fiche.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 55,
+    filters: {
+      categoryPaths: ["/vetements-chaussures-bijoux-accessoires/vetements-homme/pantalons-jeans?maas_28003=Homme"],
+      keywords: ["pantalon", "jean", "chino", "cargo", "jogger"],
+      maxPrice: 700,
+      minDiscountPct: 20,
+      excludedCharacteristics: MEN_FASHION_EXCLUSIONS,
+    },
+  },
+  {
+    name: "Chaussures Homme – pointure 42 en promo",
+    description: "Baskets, sneakers et chaussures de sport homme en pointure 42, avec au moins 20 % de remise annoncée.",
+    enabled: true,
+    notifyMode: "all",
+    notifyMinScore: 55,
+    filters: {
+      categoryPaths: [
+        "/sport/vetements-chaussures-de-sport?maas_46800=42&maas_28003=Homme",
+        "/vetements-chaussures-bijoux-accessoires/vetements-homme?maas_46800=42&maas_28003=Homme",
+      ],
+      keywords: ["chaussures", "baskets", "sneakers", "shoes", "running", "sandales", "claquette", "mules"],
+      minDiscountPct: 20,
+      excludedCharacteristics: MEN_FASHION_EXCLUSIONS,
+    },
+  },
+];

@@ -11,6 +11,22 @@ export interface RenderOptions {
   /** How many times to scroll / click "Voir plus" to load more products. */
   maxPages: number;
   minDelayMs: number;
+  /** "auto" tries Edge, then Chrome, then the bundled Chromium. */
+  channel?: "auto" | "msedge" | "chrome" | "chromium";
+}
+
+/** Launch order: a real browser first (Marjane blocks bundled Chromium), bundled last. */
+function channelCandidates(choice: RenderOptions["channel"]): (string | undefined)[] {
+  switch (choice) {
+    case "msedge":
+      return ["msedge"];
+    case "chrome":
+      return ["chrome"];
+    case "chromium":
+      return [undefined];
+    default:
+      return ["msedge", "chrome", undefined];
+  }
 }
 
 /**
@@ -29,16 +45,35 @@ export class ListingRenderer {
   private async ensure(): Promise<BrowserContext> {
     if (this.context) return this.context;
     const { chromium } = await import("playwright");
-    this.browser = await chromium.launch({
-      headless: true,
-      args: ["--disable-dev-shm-usage", "--no-zygote", "--disable-gpu", "--disable-extensions"],
-    });
+    const args = ["--disable-dev-shm-usage", "--no-zygote", "--disable-gpu", "--disable-extensions", "--disable-blink-features=AutomationControlled"];
+    const candidates = channelCandidates(this.opts.channel);
+    let lastError: unknown;
+    for (const channel of candidates) {
+      try {
+        this.browser = await chromium.launch({ headless: true, channel, args });
+        break;
+      } catch (err) {
+        // Channel not installed on this machine: fall through to the next one.
+        lastError = err;
+      }
+    }
+    if (!this.browser) {
+      throw new Error(
+        `Aucun navigateur disponible pour le rendu (Edge/Chrome/Chromium). Installez Microsoft Edge ou Google Chrome, ou lancez « playwright install chrome ». Détail : ${
+          lastError instanceof Error ? lastError.message : String(lastError)
+        }`,
+      );
+    }
     this.context = await this.browser.newContext({
       userAgent: this.opts.userAgent,
       locale: "fr-MA",
       timezoneId: "Africa/Casablanca",
       viewport: { width: 1366, height: 900 },
       javaScriptEnabled: true,
+    });
+    // Reduce the automation fingerprint that some WAFs score against.
+    await this.context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
     });
     await this.context.route("**/*", (route) => {
       const req = route.request();

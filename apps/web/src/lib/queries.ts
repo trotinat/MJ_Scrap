@@ -238,24 +238,76 @@ export async function recentPriceChanges(q?: string, limit = 100) {
   return res.rows;
 }
 
-export async function trackedOffers(q?: string, limit = 100) {
+export type TrackedSort = "recent" | "drop" | "cheapest" | "observed";
+
+export type TrackedOffer = {
+  id: string;
+  title: string;
+  current_price_cents: number | null;
+  min_price_cents: number | null;
+  max_price_cents: number | null;
+  observations: number;
+  first_seen_at: string;
+  last_success_at: string | null;
+  status: string;
+  /** Observed prices (centimes), oldest → newest, for the sparkline. */
+  spark: number[];
+};
+
+export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limit?: number } = {}): Promise<TrackedOffer[]> {
+  const { q, sort = "recent" } = opts;
+  const limit = Math.min(opts.limit ?? 100, 300);
   const filter = q ? sql`where o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
-  const res = await db().execute<{
-    id: string;
-    title: string;
-    current_price_cents: number | null;
-    min_price_cents: number | null;
-    observations: number;
-    first_seen_at: string;
-    last_success_at: string | null;
-    status: string;
-  }>(sql`
-    select o.id, o.title, o.current_price_cents, o.min_price_cents, o.first_seen_at, o.last_success_at, o.status,
-      (select count(*)::int from price_history ph where ph.offer_id = o.id) as observations
+  // "Closest to its lowest" first: smallest gap between current and min price.
+  const order =
+    sort === "cheapest"
+      ? sql`o.current_price_cents asc nulls last`
+      : sort === "observed"
+        ? sql`observations desc`
+        : sort === "drop"
+          ? sql`case when o.min_price_cents > 0 and o.current_price_cents is not null
+                   then (o.current_price_cents - o.min_price_cents)::numeric / o.min_price_cents end asc nulls last`
+          : sql`o.last_seen_at desc`;
+  const res = await db().execute<TrackedOffer>(sql`
+    select o.id, o.title, o.current_price_cents, o.min_price_cents, o.max_price_cents, o.first_seen_at, o.last_success_at, o.status,
+      (select count(*)::int from price_history ph where ph.offer_id = o.id) as observations,
+      coalesce((
+        select json_agg(x.price_cents order by x.observed_at, x.id)
+        from (select price_cents, observed_at, id from price_history ph where ph.offer_id = o.id order by observed_at desc, id desc limit 40) x
+      ), '[]'::json) as spark
     from product_offers o ${filter}
-    order by o.last_seen_at desc
+    order by ${order}
     limit ${limit}`);
   return res.rows;
+}
+
+/** Headline counts for the price-history page. */
+export async function priceHistorySummary(q?: string) {
+  const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
+  const [row] = (await db().execute<{
+    tracked: number;
+    observations: number;
+    at_lowest: number;
+    drops_7d: number;
+  }>(sql`
+    select
+      (select count(*)::int from product_offers o where true ${filter}) as tracked,
+      (select count(*)::int from price_history ph join product_offers o on o.id = ph.offer_id where true ${filter}) as observations,
+      (select count(*)::int from product_offers o
+         where o.current_price_cents is not null and o.min_price_cents is not null
+           and o.current_price_cents <= o.min_price_cents ${filter}) as at_lowest,
+      (select count(*)::int from (
+         select ph.offer_id, ph.price_cents, ph.observed_at,
+                lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
+         from price_history ph join product_offers o on o.id = ph.offer_id
+         where ph.observed_at > now() - interval '7 days' ${filter}
+       ) x where x.prev is not null and x.price_cents < x.prev) as drops_7d`)).rows;
+  return {
+    tracked: Number(row?.tracked ?? 0),
+    observations: Number(row?.observations ?? 0),
+    atLowest: Number(row?.at_lowest ?? 0),
+    drops7d: Number(row?.drops_7d ?? 0),
+  };
 }
 
 /* ------------------------------------------------------------------- runs */
@@ -425,9 +477,16 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
  * "Cette semaine": the best offers seen on any promotion page during the last
  * 7 days (one row per offer), ranked by advertised discount.
  */
-export async function weeklyOffers(paths: string[], opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+export async function weeklyOffers(
+  paths: string[],
+  opts: { sort?: FlashSort; q?: string; requireDeal?: boolean; limit?: number } = {},
+): Promise<FlashRow[]> {
   if (paths.length === 0) return [];
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
+  // Promo aggregation ("Cette semaine") keeps only real deals; a clearance hub
+  // ("Tout le déstockage") is already all clearance, so it shows everything.
+  const requireDeal = opts.requireDeal ?? true;
+  const limit = Math.min(opts.limit ?? 60, 300);
   const order =
     opts.sort === "price"
       ? sql`o.current_price_cents asc`
@@ -461,9 +520,9 @@ export async function weeklyOffers(paths: string[], opts: { sort?: FlashSort; q?
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
     where o.status = 'active'
-      and (o.advertised_discount_pct >= 20 or (prev.price_cents > o.current_price_cents))
+      ${requireDeal ? sql`and (o.advertised_discount_pct >= 20 or (prev.price_cents > o.current_price_cents))` : sql``}
       ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
     order by ${order}, o.title
-    limit 60`);
+    limit ${limit}`);
   return rows.rows;
 }
