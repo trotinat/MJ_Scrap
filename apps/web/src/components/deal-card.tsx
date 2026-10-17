@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RetailerLink } from "./retailer-link";
+import { ShareButton } from "./share-button";
 import { CheckCheck, TrendingDown } from "lucide-react";
 import { DEAL_CLASS_LABELS, deriveGallery, type DealClass, type Highlight } from "@mdw/shared";
 import { cx } from "./ui";
@@ -143,7 +144,10 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
             <input type="checkbox" name="ids" value={d.offerId} form={compareForm} className="h-3.5 w-3.5 rounded border-paper-line accent-ink" /> Comparer
           </label>
         )}
-        <RetailerLink url={d.url} className="inline-flex items-center justify-center gap-1 rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700" />
+        <div className="flex items-center gap-2">
+          <RetailerLink url={d.url} className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700" />
+          <ShareButton url={d.url} title={d.title} label="" className="shrink-0 rounded-xl px-2.5 py-2" />
+        </div>
       </div>
     </article>
   );

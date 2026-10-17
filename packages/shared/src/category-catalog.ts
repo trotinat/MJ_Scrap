@@ -60,3 +60,25 @@ export const CATEGORY_CATALOG: CatalogNode[] = (() => {
 
 export const CATEGORY_CATALOG_PATH_COUNT = snapshot.paths.length;
 export const CATEGORY_CATALOG_CHECKED_AT = snapshot.checkedAt;
+
+/**
+ * Pulls category paths out of a Marjane category page's HTML (anchors and the
+ * Next.js data payload), keeping only well-formed department paths. Used by the
+ * deep catalogue crawl to discover sub-rayons the sitemap omits (level 4+).
+ * Pure and side-effect free so it is unit-tested without network access.
+ */
+export function extractCategoryPaths(html: string, rootsInput: Iterable<string>): string[] {
+  const roots = new Set([...rootsInput].map((r) => r.replace(/^\//, "")));
+  const out = new Set<string>();
+  const add = (raw: string) => {
+    const path = raw.replace(/\\\//g, "/").split(/[?#]/)[0]!.replace(/\/+$/, "");
+    if (!/^\/[a-z0-9][a-z0-9/-]*$/.test(path)) return;
+    const segs = path.split("/").filter(Boolean);
+    if (segs.length < 2) return; // need at least a department + one child
+    if (!roots.has(segs[0]!)) return; // only the known departments, never /p/, promos, brand stores
+    out.add(path);
+  };
+  for (const m of html.matchAll(/href=["'](\/[^"'?#]+)["']/gi)) add(m[1]!);
+  for (const m of html.matchAll(/["'](?:url|path|href|slug|canonical|canonicalUrl)["']\s*:\s*["'](\/[^"'?#\\]+)["']/gi)) add(m[1]!);
+  return [...out].sort();
+}

@@ -8,6 +8,7 @@ import { priceStats, historyFacts } from "@mdw/scoring";
 import { describeSpec, type NormalizedSpecs } from "@mdw/shared";
 import { Badge, btn, Card, FreshnessBadge, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
 import { PriceChart } from "@/components/price-chart";
+import { ShareButton } from "@/components/share-button";
 import { offerDetail, similarModelOffers } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, formatPct, STOCK_LABELS } from "@/lib/format";
 
@@ -35,7 +36,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         title={offer.title}
         description={`${product.brand ?? "Marque inconnue"}${product.modelRef ? ` · Réf. ${product.modelRef}` : ""}${offer.seller ? ` · Vendu par ${offer.seller}` : ""}`}
         actions={
-          <RetailerLink url={offer.url} className={btn.primary} label="Voir sur Marjane Mall" />
+          <div className="flex flex-wrap items-center gap-2">
+            <RetailerLink url={offer.url} className={btn.primary} label="Voir sur Marjane Mall" />
+            <ShareButton url={offer.url} title={offer.title} />
+          </div>
         }
       />
 
