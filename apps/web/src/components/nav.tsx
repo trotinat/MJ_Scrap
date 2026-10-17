@@ -1,22 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ShoppingBag, Bell, History, LineChart, MoreHorizontal, Percent, Search, Settings, ShieldCheck, Tag, UserCog, X, Zap, Home, Radar } from "lucide-react";
+import { ShoppingBag, Bell, History, LineChart, MoreHorizontal, Percent, Search, Settings, ShieldCheck, Tag, UserCog, X, Zap, Home, Radar, Store } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cx } from "./ui";
 
+type NavItem = { href: string; label: string; icon: LucideIcon };
 /** What people come for, in the order they use it. */
-const PRIMARY = [
-  { href: "/", label: "Accueil", icon: Home },
-  { href: "/promotions", label: "Résultats", icon: Tag },
-  { href: "/ventes-flash", label: "Promos", icon: Zap },
+const PRIMARY: NavItem[] = [
+  { href: "/", label: "Pour vous", icon: Home },
+  { href: "/boutiques", label: "Boutiques", icon: Store },
+  { href: "/promotions", label: "Mes résultats", icon: Tag },
   { href: "/criteres", label: "Recherches", icon: Search },
   { href: "/notifications", label: "Alertes", icon: Bell },
 ];
-const MOBILE_PRIMARY = PRIMARY.filter(({ href }) => href !== "/ventes-flash");
+const MOBILE_PRIMARY = PRIMARY.slice(0, 4);
 /** Tools and maintenance. */
-const SECONDARY = [
+const SECONDARY: NavItem[] = [
+  { href: "/ventes-flash", label: "Promotions flash", icon: Zap },
   { href: "/panier", label: "Mon panier malin", icon: ShoppingBag },
   { href: "/profil", label: "Mon profil", icon: UserCog },
   { href: "/destockage", label: "Déstockage", icon: Percent },
@@ -25,10 +28,11 @@ const SECONDARY = [
   { href: "/parametres", label: "Paramètres", icon: Settings },
   { href: "/admin", label: "État du système", icon: ShieldCheck },
 ];
-const MOBILE_TOOLS = [PRIMARY[2], ...SECONDARY];
+const MOBILE_TOOLS: NavItem[] = [PRIMARY[4], ...SECONDARY];
 
-export function Nav({ email, logout }: { email: string; logout: (() => Promise<void>) | null }) {
+export function Nav({ email, logout, shops = [] }: { email: string; logout: (() => Promise<void>) | null; shops?: { id: string; name: string }[] }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [more, setMore] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => setMore(false), [pathname]);
@@ -64,7 +68,7 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
     </Link>
   );
 
-  const item = (dark: boolean) => ({ href, label, icon: Icon }: (typeof PRIMARY)[number]) => (
+  const item = (dark: boolean) => ({ href, label, icon: Icon }: NavItem) => (
     <Link
       key={href}
       href={href}
@@ -111,6 +115,12 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
         <nav className="flex flex-col gap-1 px-3" aria-label="Navigation principale">
           {PRIMARY.map(item(false))}
         </nav>
+        {shops.length > 0 && <div className="mt-6 border-t border-paper-line px-3 pt-4">
+          <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Mes boutiques</p>
+          <nav className="flex flex-col gap-0.5" aria-label="Accès direct aux boutiques">
+            {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} aria-current={pathname === "/boutiques" && searchParams.get("shop") === shop.id ? "page" : undefined} className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm text-ink-soft hover:bg-paper hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><Store className="h-4 w-4 text-brand-600" aria-hidden />{shop.name}</Link>)}
+          </nav>
+        </div>}
         <p className="mt-8 px-6 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Outils</p>
         <nav className="flex flex-col gap-0.5 px-3" aria-label="Outils">
           {SECONDARY.map(item(false))}
@@ -167,6 +177,12 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
               </button>
             </div>
             <nav className="flex flex-col gap-1">{MOBILE_TOOLS.map(item(false))}</nav>
+            {shops.length > 0 && <div className="mt-4 border-t border-paper-line pt-4">
+              <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Mes boutiques</p>
+              <nav className="flex flex-col gap-1" aria-label="Boutiques disponibles">
+                {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><Store className="h-4 w-4 text-brand-600" aria-hidden />{shop.name}</Link>)}
+              </nav>
+            </div>}
             <div className="mt-4 border-t border-paper-line pt-3">{account(false)}</div>
           </div>
         </div>

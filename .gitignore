@@ -18,6 +18,7 @@ node_modules/
 .next-tenants/
 .next-hawta/
 .next-hawta2/
+.next-hawta*/
 dist/
 out/
 coverage/

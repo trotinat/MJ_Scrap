@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   dealMatches,
   listUserShops,
@@ -12,6 +12,7 @@ import {
   products,
   scrapingErrors,
   scrapingRuns,
+  shops as shopTable,
   searchCriteria,
   workerStatus,
 } from "@mdw/database";
@@ -198,6 +199,53 @@ export async function dealFacets() {
     listUserShops(db(), userId),
   ]);
   return { brands: brands.rows.map((r) => r.brand), categories: categories.rows.map((r) => r.category_path), criteria, shops };
+}
+
+/** Shared catalog for every shop assigned to the signed-in account. */
+export async function shopDiscovery(opts: { shopId?: string; q?: string; sort?: "best" | "recent" | "price"; page?: number } = {}) {
+  const userId = (await requireUser()).id;
+  const shops = await listUserShops(db(), userId);
+  const since = new Date(Date.now() - (await getAppSettings(db())).staleAfterHours * 3_600_000);
+  const stats = shops.length ? await db().execute<{ shop_id: string; name: string; base_url: string; offers: number; fresh: number; last_seen: string | null }>(sql`
+    select s.id as shop_id, s.name, s.base_url,
+      count(o.id) filter (where o.status = 'active' and o.current_price_cents is not null)::int as offers,
+      count(o.id) filter (where o.status = 'active' and o.current_price_cents is not null and o.last_success_at >= ${since})::int as fresh,
+      max(o.last_success_at) as last_seen
+    from shops s
+    join user_shops us on us.shop_id = s.id and us.user_id = ${userId}
+    left join product_offers o on o.shop_id = s.id
+    where s.active = true
+    group by s.id
+    order by s.name
+  `) : { rows: [] };
+  const allowed = shops.map((s) => s.id);
+  const invalidShop = Boolean(opts.shopId && !allowed.includes(opts.shopId));
+  if (!allowed.length || invalidShop) return { shops: stats.rows, rows: [], total: 0, page: 1, pages: 1, invalidShop };
+
+  const where = [inArray(productOffers.shopId, allowed), eq(productOffers.status, "active"), isNotNull(productOffers.currentPriceCents)];
+  if (opts.shopId) where.push(eq(productOffers.shopId, opts.shopId));
+  if (opts.q?.trim()) where.push(sql`${productOffers.title} ilike ${`%${opts.q.trim().replace(/[%_\\]/g, (m) => `\\${m}`)}%`}`);
+  const filter = and(...where);
+  const pageSize = 24;
+  const page = Math.max(1, Math.min(10000, Math.trunc(opts.page ?? 1)));
+  const prevPrice = sql<number | null>`(select ph.price_cents from price_history ph where ph.offer_id = ${productOffers.id} order by ph.observed_at desc, ph.id desc offset 1 limit 1)`;
+  const orderBy = opts.sort === "price" ? [asc(productOffers.currentPriceCents), desc(productOffers.lastSuccessAt)]
+    : opts.sort === "recent" ? [desc(productOffers.lastSuccessAt)]
+      : [sql`case when ${prevPrice} > ${productOffers.currentPriceCents} then (${prevPrice} - ${productOffers.currentPriceCents})::numeric / ${prevPrice} else 0 end desc`, desc(productOffers.lastSuccessAt), sql`${productOffers.advertisedDiscountPct} desc nulls last`];
+  const [rows, [total]] = await Promise.all([
+    db().select({
+      offerId: productOffers.id, shopId: productOffers.shopId, shopName: shopTable.name,
+      title: productOffers.title, url: productOffers.url, imageUrl: products.imageUrl, brand: products.brand,
+      priceCents: productOffers.currentPriceCents, originalPriceCents: productOffers.originalPriceCents,
+      discountPct: productOffers.advertisedDiscountPct, previousPriceCents: prevPrice,
+      minPriceCents: productOffers.minPriceCents, firstSeenAt: productOffers.firstSeenAt,
+      observedAt: productOffers.lastSuccessAt, stock: productOffers.stockStatus,
+    }).from(productOffers).innerJoin(shopTable, eq(shopTable.id, productOffers.shopId)).innerJoin(products, eq(products.id, productOffers.productId))
+      .where(filter).orderBy(...orderBy).limit(pageSize).offset((page - 1) * pageSize),
+    db().select({ n: count() }).from(productOffers).where(filter),
+  ]);
+  const countTotal = Number(total?.n ?? 0);
+  return { shops: stats.rows, rows, total: countTotal, page, pages: Math.max(1, Math.ceil(countTotal / pageSize)), invalidShop: false };
 }
 
 /* ----------------------------------------------------------------- product */

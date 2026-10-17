@@ -3,7 +3,7 @@ import { RetailerLink } from "./retailer-link";
 import { ShareButton } from "./share-button";
 import { CheckCheck, TrendingDown } from "lucide-react";
 import { DEAL_CLASS_LABELS, deriveGallery, type DealClass, type Highlight } from "@mdw/shared";
-import { cx } from "./ui";
+import { cx, StockBadge } from "./ui";
 import { ProductGallery } from "./product-gallery";
 import { formatMad } from "@/lib/format";
 
@@ -22,6 +22,7 @@ export interface DealCardData {
   firstSeenAt: Date | string | null;
   matches?: { id: string; name: string }[];
   status?: string;
+  stockStatus?: string;
   score?: number;
   dealClass?: DealClass;
   /** Profile / promo badges computed upstream from the shopper profile. */
@@ -71,7 +72,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         {d.discountPct !== null && d.discountPct > 0 && (
           <span
             className="num absolute left-2 top-2 rounded-lg bg-white/95 px-2 py-1 text-xs font-extrabold text-promo shadow-sm"
-            title="Remise annoncée par Marjane Mall"
+            title={`Remise annoncée par ${source}`}
           >
             -{Math.round(d.discountPct)}% <span className="text-[9px] font-semibold">annoncés</span>
           </span>
@@ -87,7 +88,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
       </Link>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-5 sm:p-6" : "p-3.5")}>
-        <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>
+        <div className="flex min-w-0 items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>{d.stockStatus && <StockBadge stock={d.stockStatus} />}</div>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100
