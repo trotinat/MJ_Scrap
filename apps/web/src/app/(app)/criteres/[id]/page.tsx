@@ -122,6 +122,11 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
           . Les produits trouvés apparaîtront ici. Vous pouvez affiner les filtres avec « Modifier » (mots-clés, exclusions, prix cible…).
         </div>
       )}
+      {c.enabled && matches.length > 0 && (
+        <Link href={`/promotions?criterionId=${c.id}`} className={`${btn.primary} mb-4 inline-flex`}>
+          Voir les résultats classés
+        </Link>
+      )}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Filtres" className="lg:col-span-1">
           <dl className="space-y-3 text-sm">

@@ -13,7 +13,7 @@ import {
   searchCriteria,
   workerStatus,
 } from "@mdw/database";
-import { DEFAULT_SCRAPE_TIMES, nextScheduledRuns } from "@mdw/shared";
+import { DEFAULT_SCRAPE_TIMES, nextScheduledRuns, fitsPromotionProfile } from "@mdw/shared";
 
 const db = () => getDb();
 
@@ -115,7 +115,11 @@ export type DealRow = {
 export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; total: number }> {
   const pageSize = Math.min(f.pageSize ?? 24, 5000);
   const page = Math.max(1, f.page ?? 1);
-  const where = [sql`m.is_match = true`, sql`c.enabled = true`];
+  const settings = await getAppSettings(db());
+  const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
+  const where = [sql`m.is_match = true`, sql`c.enabled = true`, sql`o.status = 'active'`, sql`o.last_success_at >= ${freshSince}`,
+    sql`m.last_evaluated_at >= c.updated_at`,
+    sql`m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)`];
   if (f.criterionId) where.push(sql`m.criterion_id = ${f.criterionId}`);
   if (f.category) where.push(sql`p.category_path like ${`${f.category}%`}`);
   if (f.brand) where.push(sql`p.brand ilike ${f.brand}`);
@@ -131,7 +135,10 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
         ? sql`drop_pct asc nulls last, max(m.score) desc`
         : f.sort === "recent"
           ? sql`max(m.first_matched_at) desc nulls last`
-          : sql`max(m.score) desc, o.current_price_cents asc`;
+          : sql`max(m.score) desc,
+              case when prev.price_cents > o.current_price_cents then 1 else 0 end desc,
+              case when o.stock_status = 'in_stock' then 1 else 0 end desc,
+              o.current_price_cents asc, o.id`;
 
   const base = sql`
     from deal_matches m
@@ -346,21 +353,35 @@ export async function listNotifications(status?: string, criterionId?: string, l
 /* -------------------------------------------------------------- criterion */
 
 export async function criterionMatches(criterionId: string, limit = 30) {
+  const settings = await getAppSettings(db());
+  const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   return db()
     .select({ match: dealMatches, offer: productOffers, product: { imageUrl: products.imageUrl, brand: products.brand } })
     .from(dealMatches)
     .innerJoin(productOffers, eq(productOffers.id, dealMatches.offerId))
     .innerJoin(products, eq(products.id, productOffers.productId))
-    .where(and(eq(dealMatches.criterionId, criterionId), eq(dealMatches.isMatch, true)))
+    .innerJoin(searchCriteria, eq(searchCriteria.id, dealMatches.criterionId))
+    .where(and(eq(dealMatches.criterionId, criterionId), eq(dealMatches.isMatch, true), eq(searchCriteria.enabled, true),
+      eq(productOffers.status, "active"), gte(productOffers.lastSuccessAt, freshSince),
+      gte(dealMatches.lastEvaluatedAt, searchCriteria.updatedAt),
+      sql`${dealMatches.lastEvaluatedAt} >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)`))
     .orderBy(desc(dealMatches.score))
     .limit(limit);
 }
 
 export async function criteriaSummaries() {
+  const settings = await getAppSettings(db());
+  const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const res = await db().execute<{ criterion_id: string; matches: number; best_score: number | null; last_notified: string | null }>(sql`
     select c.id as criterion_id,
-      (select count(*)::int from deal_matches m where m.criterion_id = c.id and m.is_match) as matches,
-      (select max(score) from deal_matches m where m.criterion_id = c.id and m.is_match) as best_score,
+      (select count(*)::int from deal_matches m join product_offers o on o.id = m.offer_id
+        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active'
+          and o.last_success_at >= ${freshSince} and m.last_evaluated_at >= c.updated_at
+          and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)) as matches,
+      (select max(m.score) from deal_matches m join product_offers o on o.id = m.offer_id
+        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active'
+          and o.last_success_at >= ${freshSince} and m.last_evaluated_at >= c.updated_at
+          and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)) as best_score,
       (select max(created_at) from notifications n where n.criterion_id = c.id) as last_notified
     from search_criteria c`);
   return new Map(res.rows.map((r) => [r.criterion_id, r]));
@@ -410,6 +431,8 @@ export type FlashRow = {
   url: string;
   image_url: string | null;
   brand: string | null;
+  raw_specs: Record<string,string>;
+  category_path: string | null;
   seller: string | null;
   current_price_cents: number;
   original_price_cents: number | null;
@@ -434,8 +457,10 @@ export async function flashPages() {
  * Offers currently displayed on a promotion page: seen during the last
  * successful crawl of that page (a 1-hour margin covers long runs).
  */
-export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: string } = {}): Promise<FlashRow[]> {
+export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: string; scope?: 'profile' | 'all' } = {}): Promise<FlashRow[]> {
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
+  const settings = await getAppSettings(db());
+  const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const order =
     opts.sort === "price"
       ? sql`o.current_price_cents asc`
@@ -445,14 +470,15 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
           ? sql`a.first_seen_at desc`
           : sql`o.advertised_discount_pct desc nulls last`;
   const rows = await db().execute<FlashRow>(sql`
-    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, o.seller,
+    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, p.raw_specs, p.category_path, o.seller,
            o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
            prev.price_cents as previous_price_cents, o.min_price_cents,
            a.first_seen_at, a.last_seen_at,
            coalesce((
              select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
              from deal_matches m join search_criteria c on c.id = m.criterion_id
-             where m.offer_id = o.id and m.is_match and c.enabled
+             where m.offer_id = o.id and m.is_match and c.enabled and m.last_evaluated_at >= c.updated_at
+               and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key='app'), '-infinity'::timestamptz)
            ), '[]'::json) as matches
     from listing_appearances a
     join listing_crawls lc on lc.path = a.listing_path
@@ -464,12 +490,13 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
     where a.listing_path = ${path}
+      and o.last_success_at >= ${freshSince}
       and a.last_seen_at >= lc.last_success_at - interval '1 hour'
       and o.status = 'active'
       ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
     order by ${order}, o.title
-    limit 300`);
-  return rows.rows;
+    limit 1000`);
+  return rows.rows.filter(r => opts.scope === 'all' || fitsPromotionProfile({title:r.title,brand:r.brand,rawSpecs:r.raw_specs,categoryPath:r.category_path},settings.shopperProfile)).slice(0,300);
 }
 
 /**
@@ -478,9 +505,15 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
  */
 export async function weeklyOffers(
   paths: string[],
-  opts: { sort?: FlashSort; q?: string; requireDeal?: boolean; limit?: number } = {},
+  opts: { sort?: FlashSort; q?: string; requireDeal?: boolean; limit?: number; includeCampaigns?: boolean; scope?: 'profile' | 'all' } = {},
 ): Promise<FlashRow[]> {
+  if (opts.includeCampaigns) {
+    const campaigns = await flashPages();
+    paths=[...new Set([...paths,...campaigns.filter(c=>+c.last_success_at>Date.now()-86400_000 && /^\/(panier-malin|trouvailles-marjane-mall|les-deals-|tout-a-moins-de-)/.test(c.path)).map(c=>c.path)])];
+  }
   if (paths.length === 0) return [];
+  const settings = await getAppSettings(db());
+  const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
   // Promo aggregation ("Cette semaine") keeps only real deals; a clearance hub
   // ("Tout le déstockage") is already all clearance, so it shows everything.
@@ -495,14 +528,15 @@ export async function weeklyOffers(
           ? sql`w.first_seen_at desc`
           : sql`o.advertised_discount_pct desc nulls last`;
   const rows = await db().execute<FlashRow>(sql`
-    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, o.seller,
+    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, p.raw_specs, p.category_path, o.seller,
            o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
            prev.price_cents as previous_price_cents, o.min_price_cents,
            w.first_seen_at, w.last_seen_at,
            coalesce((
              select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
              from deal_matches m join search_criteria c on c.id = m.criterion_id
-             where m.offer_id = o.id and m.is_match and c.enabled
+             where m.offer_id = o.id and m.is_match and c.enabled and m.last_evaluated_at >= c.updated_at
+               and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key='app'), '-infinity'::timestamptz)
            ), '[]'::json) as matches
     from (
       select offer_id, min(first_seen_at) as first_seen_at, max(last_seen_at) as last_seen_at
@@ -519,9 +553,42 @@ export async function weeklyOffers(
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
     where o.status = 'active'
+      and o.last_success_at >= ${freshSince}
       ${requireDeal ? sql`and (o.advertised_discount_pct >= 20 or (prev.price_cents > o.current_price_cents))` : sql``}
       ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
     order by ${order}, o.title
-    limit ${limit}`);
+    limit 1000`);
+  return rows.rows.filter(r => opts.scope === 'all' || fitsPromotionProfile({title:r.title,brand:r.brand,rawSpecs:r.raw_specs,categoryPath:r.category_path},settings.shopperProfile)).slice(0,limit);
+}
+
+
+/** Fresh observed eligibility only; no inference from a discount badge. */
+export async function basketCandidates() {
+  const settings = await getAppSettings(db());
+  const rows = await db().execute<{id:string;title:string;price_cents:number;brand:string|null;raw_specs:Record<string,string>;category_path:string|null;eligible:boolean}>(sql`
+    select o.id,o.title,o.current_price_cents as price_cents,p.brand,p.raw_specs,p.category_path,
+      exists(select 1 from listing_appearances a where a.offer_id=o.id
+        and (a.listing_path='/panier-malin' or a.listing_path like '/panier-malin/%')
+        and a.last_seen_at >= now()-interval '24 hours') as eligible
+    from product_offers o join products p on p.id=o.product_id
+    where o.status='active' and o.stock_status <> 'out_of_stock' and o.current_price_cents>0
+      and o.last_success_at >= ${new Date(Date.now()-settings.staleAfterHours*3600_000)}
+    order by eligible desc,o.current_price_cents asc,o.id limit 1000`);
+  return rows.rows.filter(r=>fitsPromotionProfile({title:r.title,brand:r.brand,rawSpecs:r.raw_specs,categoryPath:r.category_path},settings.shopperProfile)).slice(0,100)
+    .map(r=>({id:r.id,title:r.title,priceCents:r.price_cents,eligible:r.eligible}));
+}
+
+/** Candidate comparison only: matching a model name does not prove identical variants or bundles. */
+export async function similarModelOffers(offerId:string, modelRef:string|null, brand:string|null) {
+  if (!modelRef || modelRef.replace(/[^a-z0-9]/gi,'').length<4 || !brand) return [];
+  const brands = /^(anker|soundcore)$/i.test(brand.trim()) ? ['anker','soundcore'] : [brand.toLowerCase().trim()];
+  const settings=await getAppSettings(db());
+  const rows=await db().execute<{id:string;title:string;price_cents:number;seller:string|null}>(sql`
+    select o.id,o.title,o.current_price_cents as price_cents,o.seller from product_offers o join products p on p.id=o.product_id
+    where o.id <> ${offerId} and o.status='active' and o.stock_status <> 'out_of_stock'
+      and o.current_price_cents>0 and o.last_success_at >= ${new Date(Date.now()-settings.staleAfterHours*3600_000)}
+      and lower(trim(p.brand)) in (${sql.join(brands.map(b=>sql`${b}`),sql`,`)})
+      and regexp_replace(lower(p.model_ref),'[^a-z0-9]','','g') = ${modelRef.toLowerCase().replace(/[^a-z0-9]/g,'')}
+    order by o.current_price_cents,o.id limit 8`);
   return rows.rows;
 }

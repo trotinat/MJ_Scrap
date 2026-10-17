@@ -36,6 +36,9 @@ export const MARJANE_FACETS = {
 /** The shopper's own characteristics, used to pre-filter and rank every search. */
 export const shopperProfileSchema = z
   .object({
+    audience: z.enum(["adult", "child", "all"]).optional(),
+    strictColors: z.boolean().optional(),
+    hiddenCategories: z.array(z.enum(["makeup"])).max(1).optional(),
     genders: z.array(z.string().trim().max(20)).max(5).default([]),
     shoeSizes: z.array(z.string().trim().max(6)).max(12).default([]),
     clothingSizes: z.array(z.string().trim().max(20)).max(12).default([]),
@@ -54,6 +57,7 @@ export const EMPTY_PROFILE: ShopperProfile = shopperProfileSchema.parse({});
 
 export function profileIsEmpty(p: ShopperProfile): boolean {
   return (
+    (p.hiddenCategories?.length ?? 0) === 0 &&
     p.genders.length === 0 &&
     p.shoeSizes.length === 0 &&
     p.clothingSizes.length === 0 &&
@@ -84,7 +88,9 @@ const TOP_TOKENS = ["t-shirt", "tshirt", "polo", "chemise", "sweat", "hoodie", "
 
 /** Which garment a listing path is about, so only the relevant size facet is applied. */
 export function garmentKind(path: string): "shoes" | "pants" | "tops" | "mixed" {
-  const p = path.split("?")[0]!.toLowerCase();
+  // The root department itself contains "chaussures"; inspect the actual rayon.
+  const p = path.split("?")[0]!.toLowerCase().split('/').filter(Boolean).at(-1) ?? '';
+  if (['vetements-chaussures-bijoux-accessoires','vetements-chaussures-de-sport','vetements-homme','vetements-femme'].includes(p)) return 'mixed';
   if (SHOE_TOKENS.some((t) => p.includes(t))) return "shoes";
   if (PANTS_TOKENS.some((t) => p.includes(t))) return "pants";
   if (TOP_TOKENS.some((t) => p.includes(t))) return "tops";

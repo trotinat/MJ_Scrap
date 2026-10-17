@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isDirectLocalRequest } from "./lib/local-access";
 
 const PUBLIC = [/^\/login$/, /^\/api\/health$/, /^\/_next\//, /^\/favicon/];
 
@@ -12,7 +13,7 @@ export function middleware(req: NextRequest) {
   if (PUBLIC.some((re) => re.test(pathname))) return NextResponse.next();
   // Local launcher without login: only for requests addressed to this computer.
   // (The local launcher only listens on localhost, so other computers cannot reach it.)
-  if (process.env.AUTH_DISABLED === "true" && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(req.headers.get("host") ?? "")) {
+  if (process.env.AUTH_DISABLED === "true" && isDirectLocalRequest(req.headers)) {
     return NextResponse.next();
   }
   const hasSession = req.cookies.has("__Host-mdw_session") || req.cookies.has("mdw_session");
@@ -20,10 +21,10 @@ export function middleware(req: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
-    return NextResponse.redirect(url);
+    // Next normalizes the backend URL to localhost; retain the public Host and port.
+    const host = req.headers.get("host");
+    const authority = host && /^(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d+)?$/i.test(host) ? host : req.nextUrl.host;
+    return NextResponse.redirect(new URL("/login", `${req.nextUrl.protocol}//${authority}`));
   }
   return NextResponse.next();
 }

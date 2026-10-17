@@ -4,6 +4,7 @@ import { ListingRenderer } from "./browser";
 import { parseListingHtml } from "./parse/listing";
 import { parseEmbeddedProducts } from "./parse/embedded";
 import { parseProductPage, ProductParseError } from "./parse/product";
+import { parseCampaignLinks } from './parse/campaigns';
 import { siteUrl } from "./url";
 
 export interface AdapterOptions extends FetcherOptions {
@@ -19,17 +20,20 @@ export interface ListingResult {
   items: ListingItem[];
   method: "http" | "browser";
   pagesLoaded: number;
+  /** Only complete catalog coverage can be used to infer that an offer disappeared. */
+  complete?: boolean;
 }
 
 export type DetailResult =
   | { kind: "ok"; detail: ProductDetail }
   | { kind: "gone"; status: number }
-  | { kind: "error"; message: string; status?: number };
+  | { kind: "error"; message: string; status?: number; unavailable?: boolean };
 
 /** Interface used by the worker, so tests can inject a fake site. */
 export interface SiteAdapter {
   discover(path: string, maxPages: number): Promise<ListingResult>;
   fetchProduct(url: string): Promise<DetailResult>;
+  discoverCampaigns?(): Promise<string[]>;
   close(): Promise<void>;
   readonly requestCount: number;
 }
@@ -64,19 +68,27 @@ export class MarjaneAdapter implements SiteAdapter {
     return this.renderer;
   }
 
+  async discoverCampaigns(): Promise<string[]> {
+    const res = await this.fetcher.get(siteUrl('/'));
+    if (res.status >= 400) throw new HttpError(`Campagnes HTTP ${res.status}`,res.status,res.url);
+    return parseCampaignLinks(res.body);
+  }
+
   async discover(path: string, maxPages: number): Promise<ListingResult> {
     const url = siteUrl(path);
     // One plain request per listing. The products are read from the page data
     // the server embeds (exact JSON values); the visible-text parser is only a
     // fallback. URL filters (size, gender…) are not applied by the server: the
     // criterion's own filters do that work afterwards.
-    if (this.opts.renderMode !== "always") {
+    const filtered = new URL(url).searchParams.size > 0;
+    if (filtered && this.opts.renderMode === 'never') throw new HttpError('Filtres non vérifiables sans rendu navigateur', 0, url);
+    if (this.opts.renderMode !== "always" && !filtered) {
       const res = await this.fetcher.get(url);
       if (res.status === 404 || res.status === 410) throw new HttpError(`Page introuvable (HTTP ${res.status})`, res.status, url);
       if (res.status >= 400) throw new HttpError(`HTTP ${res.status}`, res.status, url);
       const items = mergeItems(parseEmbeddedProducts(res.body, path), parseListingHtml(res.body, path));
       if (items.length > 0 || this.opts.renderMode === "never") {
-        return { path, items, method: "http", pagesLoaded: 1 };
+        return { path, items, method: "http", pagesLoaded: 1, complete: false };
       }
     }
     // Last resort for a page whose server response holds no product at all.
@@ -86,10 +98,12 @@ export class MarjaneAdapter implements SiteAdapter {
     });
     // A broken or missing browser must never stall the run: after one failure
     // (or a hard timeout) the remaining client-rendered pages are skipped.
-    if (this.renderDisabled) return { path, items: [], method: "http", pagesLoaded: 1 };
+    if (this.renderDisabled) throw new HttpError('Rendu indisponible après un échec précédent : couverture non vérifiée', 0, url);
     try {
       const html = await withTimeout(this.getRenderer(maxPages).render(url), this.opts.renderTimeoutMs, "Rendu du navigateur trop long");
-      return { path, items: mergeItems(parseEmbeddedProducts(html, path), parseListingHtml(html, path)), method: "browser", pagesLoaded: maxPages };
+      // Embedded server sliders can ignore URL facets; filtered pages use rendered cards only.
+      const items = filtered ? parseListingHtml(html, path) : mergeItems(parseEmbeddedProducts(html, path), parseListingHtml(html, path));
+      return { path, items, method: "browser", pagesLoaded: this.renderer?.pagesLoaded ?? 1, complete: false };
     } catch (err) {
       if (err instanceof AccessBlockedError) throw err;
       this.renderDisabled = true;
@@ -115,7 +129,7 @@ export class MarjaneAdapter implements SiteAdapter {
       if (err instanceof ProductParseError) {
         // A redirect to a listing / 404 template means the product is gone.
         if (/introuvable|404/i.test(res.body.slice(0, 5000)) && !/\/p\//.test(res.url)) return { kind: "gone", status: 404 };
-        return { kind: "error", message: `Extraction impossible : ${err.message}` };
+        return { kind: "error", message: `Extraction impossible : ${err.message}`, ...(err.unavailable ? {unavailable:true} : {}) };
       }
       throw err;
     }

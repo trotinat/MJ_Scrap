@@ -40,7 +40,7 @@ export interface ProductDetail {
   breadcrumb: string[];
   rawSpecs: Record<string, string>;
   /** How the data was obtained, for transparency. */
-  extraction: "json-ld" | "html-text" | "listing-card";
+  extraction: "json-ld" | "html-text" | "listing-card" | "embedded-data";
   /** Non-fatal inconsistencies found while parsing. */
   warnings: string[];
 }
@@ -66,6 +66,8 @@ export interface MatchableProduct {
 
 /** Price facts computed from stored observations only. */
 export interface PriceHistoryFacts {
+  typical30DayCents?: number | null;
+  observedDays30?: number;
   observationCount: number;
   previousPriceCents: number | null;
   minPriceCents: number | null;

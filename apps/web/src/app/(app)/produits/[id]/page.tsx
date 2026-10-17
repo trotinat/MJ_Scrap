@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { DeliveredPrice } from "@/components/delivered-price";
 import { notFound } from "next/navigation";
-import { ArrowUpRight } from "lucide-react";
+import { RetailerLink } from "@/components/retailer-link";
 import { z } from "zod";
 import { getAppSettings, getDb } from "@mdw/database";
-import { priceStats } from "@mdw/scoring";
+import { priceStats, historyFacts } from "@mdw/scoring";
 import { describeSpec, type NormalizedSpecs } from "@mdw/shared";
 import { Badge, btn, Card, FreshnessBadge, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
 import { PriceChart } from "@/components/price-chart";
-import { offerDetail } from "@/lib/queries";
+import { offerDetail, similarModelOffers } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, formatPct, STOCK_LABELS } from "@/lib/format";
 
 export const metadata = { title: "Détail du produit" };
@@ -19,9 +20,14 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!data) notFound();
   const { offer, product, history, matches, siblings } = data;
   const stats = priceStats(history.map((h) => ({ priceCents: h.priceCents, observedAt: h.observedAt })));
+  const baseline = historyFacts(history.map(h=>({priceCents:h.priceCents,observedAt:h.observedAt})));
   const points = history.map((h) => ({ t: h.observedAt.getTime(), price: h.priceCents / 100, original: h.originalPriceCents ? h.originalPriceCents / 100 : null }));
+  const candidates = await similarModelOffers(id,product.modelRef,product.brand);
   const specs = Object.entries(product.specs as NormalizedSpecs);
-  const raw = Object.entries(product.rawSpecs ?? {});
+  const raw = Object.entries(product.rawSpecs ?? {}).filter(([k])=>k !== 'Variantes observées (stock à confirmer)');
+  const variantsSchema=z.array(z.object({attributes:z.record(z.string()),priceCents:z.number().int().positive(),stock:z.literal('unknown')})).max(120);
+  let variants:z.infer<typeof variantsSchema>=[];
+  try {variants=variantsSchema.parse(JSON.parse(product.rawSpecs?.['Variantes observées (stock à confirmer)']??'[]'));} catch {}
 
   return (
     <>
@@ -29,9 +35,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         title={offer.title}
         description={`${product.brand ?? "Marque inconnue"}${product.modelRef ? ` · Réf. ${product.modelRef}` : ""}${offer.seller ? ` · Vendu par ${offer.seller}` : ""}`}
         actions={
-          <a href={offer.url} target="_blank" rel="noopener noreferrer nofollow" className={btn.primary}>
-            Voir sur Marjane Mall <ArrowUpRight className="h-4 w-4" />
-          </a>
+          <RetailerLink url={offer.url} className={btn.primary} label="Voir sur Marjane Mall" />
         }
       />
 
@@ -49,6 +53,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <FreshnessBadge at={offer.lastSuccessAt} staleAfterHours={settings.staleAfterHours} />
               {offer.status !== "active" && <Badge tone="red">{offer.status === "missing" ? "Plus listé sur le site" : "Page indisponible"}</Badge>}
             </div>
+            <DeliveredPrice priceCents={offer.currentPriceCents ?? 0} observedShipping={product.rawSpecs?.['Livraison affichée (adresse à confirmer)']} />
+            {product.rawSpecs?.['Attention données source'] && <p className="rounded-lg bg-tag-soft p-3 text-xs">{product.rawSpecs['Attention données source']}</p>}
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <dt className="text-ink-mute">Premier relevé</dt>
@@ -57,6 +63,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <div>
                 <dt className="text-ink-mute">Dernier relevé réussi</dt>
                 <dd className="font-medium">{formatMoroccoTime(offer.lastSuccessAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-mute">Fiche taille / stock vérifiée</dt>
+                <dd className="font-medium">{offer.lastDetailAt ? formatMoroccoTime(offer.lastDetailAt) : 'Pas encore vérifiée'}</dd>
               </div>
               <div>
                 <dt className="text-ink-mute">Source des données</dt>
@@ -92,6 +102,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               </div>
             </dl>
           )}
+          <p className="mt-3 rounded-xl bg-paper p-3 text-sm">{baseline.typical30DayCents ? `Prix habituel observé sur 30 jours : ${formatMad(baseline.typical30DayCents)} (${baseline.observedDays30} jours de données).` : `Prix habituel : historique insuffisant (${baseline.observedDays30??0}/5 jours minimum).`}</p>
           <p className="mt-3 text-xs text-ink-mute">
             Ces chiffres proviennent uniquement de nos {history.length} relevé(s) depuis le {formatMoroccoTime(offer.firstSeenAt)} ; aucun prix antérieur au début du suivi n&apos;est connu.
           </p>
@@ -173,6 +184,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </Card>
       </div>
 
+      {variants.length>0 && <Card title="Tailles, couleurs et prix observés" className="mt-6"><p className="mb-3 text-sm text-ink-mute">Chaque ligne représente une combinaison fournie par le site. Son stock reste à confirmer : une option existante n’est pas forcément achetable.</p><div className="overflow-x-auto"><table className="data"><thead><tr><th>Variante</th><th>Prix hors livraison</th><th>Disponibilité</th></tr></thead><tbody>{variants.map((v,i)=><tr key={i}><td>{Object.entries(v.attributes).map(([k,value])=>`${k} : ${value}`).join(' · ')}</td><td>{formatMad(v.priceCents)}</td><td>À confirmer</td></tr>)}</tbody></table></div></Card>}
+      {candidates.length > 0 && <Card title="Comparer les annonces de ce modèle" className="mt-6"><p className="mb-4 text-sm text-ink-mute">Modèle et marque rapprochés. Vérifiez référence, couleur, taille et contenu du pack : ces annonces ne sont pas certifiées identiques. Prix hors livraison.</p><ul className="space-y-3">{candidates.map(c=><li key={c.id} className="flex flex-wrap justify-between gap-2 rounded-xl border border-paper-line p-3"><Link href={`/produits/${c.id}`} className="max-w-lg text-sm hover:underline">{c.title}</Link><span className="text-sm font-semibold">{formatMad(c.price_cents)} · {c.seller??'Vendeur inconnu'}</span></li>)}</ul></Card>}
       {siblings.length > 0 && (
         <Card title="Autres offres du même produit" className="mt-6">
           <table className="data">

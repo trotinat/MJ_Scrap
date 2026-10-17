@@ -66,6 +66,8 @@ export default async function RunsPage() {
                   <p className="num mt-1.5 text-sm text-ink-soft">
                     {plural(st.cardsSeen ?? 0, "produit lu", "produits lus")}, {plural(st.matches ?? 0, "bon plan", "bons plans")},{" "}
                     {plural(st.newOffers ?? 0, "nouveauté", "nouveautés")}, {plural(st.priceDrops ?? 0, "baisse de prix", "baisses de prix")}
+                    {(st.detailCacheHits??0)>0 && <>, {st.detailCacheHits} fiches réutilisées</>}
+                    {(st.promoPagesSkipped??0)>0 && <>, {st.promoPagesSkipped} pages promo encore récentes</>}
                     {(st.notificationsQueued ?? 0) > 0 && <>, {plural(st.notificationsQueued ?? 0, "alerte", "alertes")}</>}
                   </p>
                 )}

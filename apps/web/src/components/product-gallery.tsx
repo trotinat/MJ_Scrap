@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ShoppingBag } from 'lucide-react';
 import { cx } from "./ui";
 
 /**
@@ -11,14 +12,15 @@ import { cx } from "./ui";
 export function ProductGallery({ images, className }: { images: string[]; className?: string }) {
   const [alt, setAlt] = useState<string | null>(images[1] ?? null);
   const primary = images[0] ?? null;
+  const [failed, setFailed] = useState<string | null>(null);
 
-  if (!primary) {
-    return <div className={cx("flex items-center justify-center bg-paper text-xs text-ink-mute", className)}>Pas d&apos;image</div>;
+  if (!primary || failed === primary) {
+    return <div className={cx("flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-paper to-tag-soft/50 text-xs text-ink-mute", className)}><ShoppingBag className="h-12 w-12 stroke-1 opacity-40" /><span>Visuel non disponible</span></div>;
   }
   return (
     <div className={cx("relative overflow-hidden bg-white", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={primary} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.04]" />
+      <img src={primary} alt="" loading="lazy" onError={() => setFailed(primary)} referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-contain p-5 transition-transform duration-300 group-hover:scale-[1.04]" />
       {alt && (
         // eslint-disable-next-line @next/next/no-img-element
         <img

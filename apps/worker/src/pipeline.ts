@@ -21,7 +21,7 @@ import {
 } from "@mdw/database";
 import { AccessBlockedError, detectBrand, extractModelRef, RobotsDisallowedError, type SiteAdapter } from "@mdw/scraper";
 import { decideNotification, evaluate, USER_NOTIFY_EVENTS, type PreviousMatchState } from "@mdw/scoring";
-import { anyPhraseMatches, madToCents, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
+import { anyPhraseMatches, madToCents, matchesFashionType, withProfileConstraints, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { enqueueNotification, formatDealMessage, processOutbox, type TelegramClient } from "@mdw/notifications";
 import { applyMissingPolicy, markOfferGone, saveObservation, type OfferObservation } from "./persist";
 import type { Logger } from "./logger";
@@ -70,6 +70,7 @@ export function couldMatch(item: ListingItem, c: Criterion, seenOn: string[] = [
   const f = c.filters;
   const keywords = [...f.keywords, ...f.altKeywords];
   const title = `${item.title}`;
+  if (!matchesFashionType(f, item.title, item.brand ?? null)) return false;
   if (keywords.length > 0 && !anyPhraseMatches(title, keywords)) {
     if (!(f.modelRef && title.toUpperCase().replace(/[^A-Z0-9]/g, "").includes(f.modelRef.toUpperCase().replace(/[^A-Z0-9]/g, "")))) {
       return false;
@@ -183,14 +184,24 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
   let fatal: string | null = null;
 
   try {
-    const settings: AppSettings = await getAppSettings(db);
-    const criteria = await listCriteria(db, { enabledOnly: true });
+    let settings: AppSettings = await getAppSettings(db);
+    if (adapter.discoverCampaigns) {
+      try {
+        const discovered = await adapter.discoverCampaigns();
+        settings = {...settings,dealPagePaths:[...new Set([...settings.dealPagePaths,...discovered])].slice(0,32)};
+        log.info({discovered},'Campagnes publiques découvertes sur la page d’accueil');
+      } catch (err) {
+        if (err instanceof AccessBlockedError || err instanceof RobotsDisallowedError) throw err;
+        await recordError('campaigns',firstLine((err as Error).message),'/');
+      }
+    }
+    const criteria = (await listCriteria(db, { enabledOnly: true })).map(c => withProfileConstraints(c, settings.shopperProfile));
     // Promotion pages (Ventes flash…) are collected even without criteria.
     if (criteria.length === 0 && settings.dealPagePaths.length === 0) {
       fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
       status = "skipped";
     } else {
-      const blocked = await collect(deps, runId, criteria, settings, stats, recordError, now, log, recordNote);
+      const blocked = await collect(deps, runId, criteria, settings, stats, recordError, now, log, recordNote, trigger);
       if (blocked) {
         // The site refused access: nothing more was requested, but what was
         // legitimately read before the refusal has been stored.
@@ -261,6 +272,7 @@ async function collect(
   now: () => Date,
   log: Logger,
   recordNote: (stage: string, message: string, url: string) => Promise<void> = async () => undefined,
+  trigger: RunTrigger = "manual",
 ): Promise<AccessBlockedError | RobotsDisallowedError | null> {
   const { db, adapter } = deps;
   let blocked: AccessBlockedError | RobotsDisallowedError | null = null;
@@ -271,7 +283,10 @@ async function collect(
   /* 1. Discover listings ---------------------------------------------------- */
   const dealPaths = new Set(settings.dealPagePaths);
   // Promotion pages first: they are plain HTML and stay useful even if a later listing is refused.
-  const paths = [...new Set([...settings.dealPagePaths, ...criteria.flatMap((c) => c.filters.categoryPaths)])];
+  const previousCrawls = await db.select().from(listingCrawls);
+  const duePromos=settings.dealPagePaths.filter(path=>trigger==='manual' || !previousCrawls.some(c=>c.path===path && +now()-+c.lastSuccessAt < settings.promoRefreshHours*3600_000));
+  stats.promoPagesSkipped=settings.dealPagePaths.length-duePromos.length;
+  const paths = [...new Set([...duePromos, ...criteria.flatMap((c) => c.filters.categoryPaths)])];
   stats.listingPaths = paths.length;
   const crawledPaths: string[] = [];
   const items = new Map<string, { item: ListingItem; categoryPath: string | null; seenOn: Set<string> }>();
@@ -284,10 +299,10 @@ async function collect(
       // An empty extraction is treated as a failure, so it can never mark offers as missing.
       if (res.items.length === 0) {
         // A known limitation, not a failure: noted for the history, the run stays successful.
-        await recordNote("page-non-lisible", "Cette page charge ses produits après coup : ils sont suivis quand ils apparaissent dans les Ventes flash.", path);
+        await recordError("extraction-vide", "Aucun produit extrait : couverture non vérifiée, cette recherche peut manquer des offres.", path);
       }
       else {
-        crawledPaths.push(path);
+        if (res.complete !== false) crawledPaths.push(path);
         const crawl = { lastSuccessAt: now(), itemCount: res.items.length, method: res.method };
         await db.insert(listingCrawls).values({ path, ...crawl }).onConflictDoUpdate({ target: listingCrawls.path, set: crawl });
       }
@@ -345,8 +360,11 @@ async function collect(
   let budget = blocked ? 0 : settings.maxDetailFetchesPerRun;
   const seenOfferIds = new Set<string>();
 
+  let lastProgress=0;
+  const progress=async(force=false)=>{if(force || Date.now()-lastProgress>=2000){lastProgress=Date.now();await db.update(scrapingRuns).set({stats:{...stats}}).where(eq(scrapingRuns.id,runId));}};
+
   /* 3. Fetch details, store, evaluate --------------------------------------- */
-  const handle = async (obs: OfferObservation) => {
+  const handle = async (obs: OfferObservation, verifiedCriterionIds?: Set<string>) => {
     const t = now();
     await db.transaction(async (tx) => {
       const saved = await saveObservation(tx, obs, runId, t);
@@ -355,16 +373,13 @@ async function collect(
       if (saved.previous.priceCents !== null && obs.priceCents < saved.previous.priceCents) stats.priceDrops!++;
       if (saved.previous.stock === "out_of_stock" && saved.matchable.stock === "in_stock") stats.restocks!++;
 
+      const previousMatches = await tx.select().from(dealMatches).where(eq(dealMatches.offerId,saved.offerId)).for("update");
+      const byCriterion = new Map(previousMatches.map(m=>[m.criterionId,m]));
       for (const criterion of criteria) {
         const ev = evaluate(criterion, saved.matchable, saved.facts, settings);
-        const [prevRow] = await tx
-          .select()
-          .from(dealMatches)
-          .where(and(eq(dealMatches.criterionId, criterion.id), eq(dealMatches.offerId, saved.offerId)))
-          .limit(1)
-          .for("update");
+        const prevRow = byCriterion.get(criterion.id);
         // Only keep rows for products that are relevant to this criterion.
-        if (!ev.isMatch && !prevRow) continue;
+        if (!ev.isMatch && !prevRow && !verifiedCriterionIds?.has(criterion.id)) continue;
         const prev: PreviousMatchState | null = prevRow
           ? {
               isMatch: prevRow.isMatch,
@@ -377,7 +392,7 @@ async function collect(
           : null;
         if (ev.isMatch) stats.matches!++;
 
-        const decision = userCriterionIds.has(criterion.id)
+        const decision = obs.source === "detail" && userCriterionIds.has(criterion.id)
           ? decideNotification(
               criterion,
               ev,
@@ -444,27 +459,54 @@ async function collect(
         else await tx.insert(dealMatches).values({ criterionId: criterion.id, offerId: saved.offerId, ...values });
       }
     });
+    stats.offersProcessed=(stats.offersProcessed??0)+1;
+    await progress();
   };
 
-  // Previously matched offers first (keeps their history continuous), then new candidates.
-  const knownIds = new Set(
-    (
-      await db
-        .select({ sourceId: productOffers.sourceId })
-        .from(productOffers)
-        .where(seenSourceIds.length ? inArray(productOffers.sourceId, seenSourceIds) : sql`false`)
-    ).map((r) => r.sourceId),
-  );
-  candidates.sort((a, b) => Number(knownIds.has(b.item.sourceId)) - Number(knownIds.has(a.item.sourceId)));
+  // Verified positive and negative evaluations both avoid repeating an unchanged detail request.
+  const existingOffers = seenSourceIds.length ? await db.select().from(productOffers).where(inArray(productOffers.sourceId,seenSourceIds)) : [];
+  const existingBySource = new Map(existingOffers.map(o=>[o.sourceId,o]));
+  const priorMatches = existingOffers.length ? (await db.execute<{offer_id:string;criterion_id:string}>(sql`
+    select m.offer_id,m.criterion_id from deal_matches m join search_criteria c on c.id=m.criterion_id
+    where m.offer_id in (${sql.join(existingOffers.map(o=>sql`${o.id}`),sql`,`)})
+      and m.last_evaluated_at >= c.updated_at
+      and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key='app'),'-infinity'::timestamptz)`)).rows : [];
+  const verifiedEvaluations = new Set(priorMatches.map(m=>`${m.offer_id}:${m.criterion_id}`));
+  const freshPriority = (candidate: typeof candidates[number]) => {
+    const old = existingBySource.get(candidate.item.sourceId);
+    if (!old) return 4;
+    return criteria.some(c => userCriterionIds.has(c.id) && couldMatch(candidate.item, c, [...candidate.seenOn]) && !verifiedEvaluations.has(`${old.id}:${c.id}`)) ? 3 : 0;
+  };
+  candidates.sort((a, b) => freshPriority(b) - freshPriority(a));
+
+  // Publish simple promotion cards before slow detail verification.
+  for (const { item, categoryPath, seenOn } of dealOnly) {
+    try {
+      await handle({ ...fromListing(item, categoryPath), listingPaths: [...seenOn] });
+    } catch (err) {
+      await recordError("store", (err as Error).message, item.url);
+    }
+  }
+
 
   for (const { item, categoryPath, seenOn } of candidates) {
     let obs: OfferObservation = { ...fromListing(item, categoryPath), listingPaths: [...seenOn] };
     // The listing data already holds exact prices: a product page is only
     // requested when a criterion needs technical specs (size, RAM, 4K…).
     const needsSpecs = criteria.some(
-      (c) => (c.filters.mandatorySpecs.length > 0 || c.filters.preferredSpecs.length > 0) && couldMatch(item, c, [...seenOn]),
+      (c) => (c.filters.mandatorySpecs.length > 0 || c.filters.preferredSpecs.length > 0 || c.filters.sizes.length > 0 || c.filters.genders.length > 0) && couldMatch(item, c, [...seenOn]),
     );
-    if (budget > 0 && needsSpecs) {
+    const old=existingBySource.get(item.sourceId);
+    const relevant=criteria.filter(c=>couldMatch(item,c,[...seenOn]));
+    const cacheAge=old?.lastDetailAt ? +now()-+old.lastDetailAt : Infinity;
+    const reusable=!!old && settings.detailCacheMinutes>0 && cacheAge>=0 && cacheAge<settings.detailCacheMinutes*60000
+      && old.status==='active' && old.stockStatus==='in_stock' && old.currentPriceCents===item.priceCents
+      && old.title===item.title && old.seller===item.seller && old.originalPriceCents===item.originalPriceCents
+      && old.advertisedDiscountPct===item.advertisedDiscountPct
+      && relevant.every(c=>verifiedEvaluations.has(`${old.id}:${c.id}`));
+    if(reusable) stats.detailCacheHits=(stats.detailCacheHits??0)+1;
+    const needsVerification=needsSpecs || relevant.some(c=>userCriterionIds.has(c.id));
+    if (budget > 0 && needsVerification && !reusable) {
       budget--;
       stats.detailFetches!++;
       let r: Awaited<ReturnType<typeof adapter.fetchProduct>>;
@@ -480,25 +522,23 @@ async function collect(
         obs = { ...fromDetail(r.detail, categoryPath, item.listingPath), listingPaths: [...seenOn] };
         if (r.detail.warnings.length) log.debug({ url: item.url, warnings: r.detail.warnings }, "avertissements d'extraction");
       } else {
+        if (r.kind === 'gone' || r.unavailable) {
+          const [existing] = await db.select({id: productOffers.id}).from(productOffers).where(eq(productOffers.sourceId, item.sourceId)).limit(1);
+          if (existing) { await db.transaction(tx => markOfferGone(tx, existing.id, now())); seenOfferIds.add(existing.id); }
+          continue;
+        }
         stats.detailFailures!++;
-        await recordError("detail", r.kind === "gone" ? `Page produit introuvable (HTTP ${r.status})` : r.message, item.url, r.kind === "gone" ? r.status : (r.status ?? null));
+        await recordError("detail", r.message, item.url, r.status ?? null);
         // Fall back to the listing card data (still a real observation).
       }
     }
     try {
-      await handle(obs);
+      await handle(obs, obs.source === "detail" ? new Set(relevant.map(c => c.id)) : undefined);
     } catch (err) {
       await recordError("store", (err as Error).message, item.url);
     }
   }
 
-  for (const { item, categoryPath, seenOn } of dealOnly) {
-    try {
-      await handle({ ...fromListing(item, categoryPath), listingPaths: [...seenOn] });
-    } catch (err) {
-      await recordError("store", (err as Error).message, item.url);
-    }
-  }
 
   for (const t of tracked) {
     if (budget <= 0 || blocked) break;
@@ -511,7 +551,7 @@ async function collect(
       } catch (err) {
         await recordError("store", (err as Error).message, t.url);
       }
-    } else if (r.kind === "gone") {
+    } else if (r.kind === "gone" || r.unavailable) {
       stats.detailFailures!++;
       await db.transaction((tx) => markOfferGone(tx, t.id, now()));
       seenOfferIds.add(t.id);
@@ -520,6 +560,8 @@ async function collect(
       await recordError("detail", r.message, t.url, r.status ?? null);
     }
   }
+
+  await progress(true);
 
   /* 4. Missing policy (only for listings crawled successfully) -------------- */
   // Every offer that appeared on a listing counts as seen, candidate or not.

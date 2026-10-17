@@ -21,7 +21,7 @@
    lecture de la liste (HTTP, ou Chromium si la liste est rendue côté client).
 3. Dédoublonnage par identifiant de fiche ; présélection légère (mots-clés,
    fourchette de prix ±15 %) pour limiter les requêtes.
-4. Consultation des fiches produit (budget : 150 par collecte), les offres
+4. Consultation des fiches produit (budget réglable, 40 par défaut), les offres
    déjà suivies d'abord ; si une fiche échoue, la carte de liste sert de relevé.
 5. Pour chaque offre, dans **une transaction** : produit, offre, relevé de
    prix, évaluation de chaque critère, file d'alertes.
@@ -109,9 +109,10 @@ seul un crash pendant l'appel à Telegram peut produire un doublon.
 
 ## Limitations connues
 
-- **Extraction non validée en direct** depuis l'environnement de
-  développement (accès réseau refusé) : exécutez `probe` sur le VPS et
-  ajoutez des fixtures réelles aux tests (`packages/scraper/fixtures/`).
+- **Couverture partielle** : la collecte a été exercée en direct le 16 octobre
+  2026. Certaines pages restent illisibles ou limitées à quelques lots ; elles
+  ne permettent pas de conclure à la disparition d'une offre. Utilisez `probe`
+  pour vérifier le comportement depuis votre serveur.
 - La recherche du site n'est pas exploitable : un critère sans catégorie ne
   trouve des produits que via les pages promotions configurées.
 - Le stock et les notes sont rarement affichés : les filtres « note minimale »

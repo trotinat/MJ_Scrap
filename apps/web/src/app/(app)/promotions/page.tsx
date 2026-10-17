@@ -5,8 +5,9 @@ import { btn, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
 import { dealFacets, listDeals } from "@/lib/queries";
 import { filtersToQuery, parseDealFilters } from "@/lib/deal-filters";
+import type { DealClass } from "@mdw/shared";
 
-export const metadata = { title: "Promotions détectées" };
+export const metadata = { title: "Résultats · Bons plans" };
 
 export default async function PromotionsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const filters = parseDealFilters(await searchParams);
@@ -18,8 +19,8 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader
-        title="Offres trouvées pour vos recherches"
-        description={`${deals.total} offres. La remise en rouge est celle annoncée par Marjane ; les baisses en vert sont mesurées sur nos propres relevés.`}
+        title="Vos résultats"
+        description={`${deals.total} offres correspondant à vos recherches, classées par score du bon plan. Les baisses en vert sont mesurées ; les remises en rouge sont annoncées par Marjane.`}
         actions={
           <>
             <a href={`/api/export?format=csv&${qs}`} className={btn.secondary}>
@@ -31,6 +32,20 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
           </>
         }
       />
+
+      <nav aria-label="Qualité des offres" className="mb-4 flex gap-2 overflow-x-auto pb-1 text-xs sm:text-sm">
+        {[
+          { label: "Toutes", score: undefined },
+          { label: "Intéressantes", score: settings.thresholds.interesting },
+          { label: "Très bonnes", score: settings.thresholds.veryGood },
+          { label: "Exceptionnelles", score: settings.thresholds.exceptional },
+        ].map(({ label, score }) => {
+          const active = filters.minScore === score;
+          return <Link key={label} href={`/promotions?${filtersToQuery({ ...filters, minScore: score, page: 1 })}`}
+            aria-current={active ? "page" : undefined}
+            className={`shrink-0 rounded-full border px-3 py-2.5 font-semibold ${active ? "border-brand-600 bg-brand-600 text-white" : "border-paper-line bg-paper-card text-ink-soft"}`}>{label}</Link>;
+        })}
+      </nav>
 
       <details className="group mb-6 rounded-2xl border border-paper-line bg-paper-card" open={Object.keys(filters).some((k) => k !== "page" && k !== "sort" && (filters as Record<string, unknown>)[k] !== undefined)}>
       <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-ink">
@@ -79,7 +94,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
           <option value="unknown">Non indiqué</option>
         </select>
         <select name="sort" defaultValue={filters.sort ?? "score"} className={input} aria-label="Tri">
-          <option value="score">Meilleur score</option>
+          <option value="score">Meilleurs bons plans</option>
           <option value="price">Prix le plus bas</option>
           <option value="drop">Plus forte baisse observée</option>
           <option value="recent">Plus récentes</option>
@@ -124,6 +139,9 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
                   firstSeenAt: d.first_seen_at,
                   matches: d.matches,
                   status: d.offer_status,
+                  score: d.score,
+                  dealClass: d.matches[0]?.dealClass as DealClass | undefined,
+                  observedAt: d.last_success_at,
                 }}
               />
             ))}

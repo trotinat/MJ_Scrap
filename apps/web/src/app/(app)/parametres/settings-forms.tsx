@@ -44,6 +44,8 @@ export function AppSettingsForm({ settings }: { settings: AppSettings }) {
           <Field label="Pages produit consultées par collecte (max.)" hint="Limite la charge envoyée au site." htmlFor="maxDetailFetchesPerRun">
             <input id="maxDetailFetchesPerRun" name="maxDetailFetchesPerRun" className={input} inputMode="numeric" defaultValue={settings.maxDetailFetchesPerRun} />
           </Field>
+          <Field label="Réutiliser les fiches inchangées (minutes)" hint="Prix, vendeur et stock connus inchangés uniquement. 0 désactive le cache." htmlFor="detailCacheMinutes"><input id="detailCacheMinutes" name="detailCacheMinutes" type="number" min="0" max="120" className={input} defaultValue={settings.detailCacheMinutes}/></Field>
+          <Field label="Intervalle du catalogue promo (heures)" hint="Recherches personnelles à chaque collecte. Les vérifications manuelles lisent toutes les pages." htmlFor="promoRefreshHours"><input id="promoRefreshHours" name="promoRefreshHours" type="number" min="0" max="24" className={input} defaultValue={settings.promoRefreshHours}/></Field>
           <Field label="Délai entre deux requêtes (secondes)" hint="1 s minimum ; 3 s recommandé." htmlFor="requestDelaySeconds">
             <input id="requestDelaySeconds" name="requestDelaySeconds" className={input} inputMode="decimal" defaultValue={settings.requestDelayMs / 1000} />
           </Field>

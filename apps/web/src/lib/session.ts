@@ -1,4 +1,5 @@
 import "server-only";
+import { isDirectLocalRequest } from "./local-access";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { asc } from "drizzle-orm";
@@ -21,12 +22,11 @@ export async function clientIp(): Promise<string> {
  * requests addressed to this computer (localhost): on a server the login stays.
  */
 export const AUTH_DISABLED = process.env.AUTH_DISABLED === "true";
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 export async function isLocalNoAuth(): Promise<boolean> {
   if (!AUTH_DISABLED) return false;
   const h = await headers();
-  return LOCAL_HOST.test(h.get("host") ?? "");
+  return isDirectLocalRequest(h);
 }
 
 export async function getCurrentUser() {

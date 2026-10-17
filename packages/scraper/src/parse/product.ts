@@ -6,9 +6,10 @@ import { cleanTitle, detectBrand, extractModelRef } from "../normalize";
 import { decodeEntities, safeHttpUrl, textLines } from "./dom";
 import { findRating, findReviewCount, findSeller, findStock } from "./fields";
 import { parsePriceLines } from "./price";
+import { embeddedDetail } from './product-data';
 
 export class ProductParseError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly unavailable = false) {
     super(message);
     this.name = "ProductParseError";
   }
@@ -115,6 +116,7 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
   const url = canonicalProductUrl($('link[rel="canonical"]').attr("href") ?? "") ?? canonicalProductUrl(pageUrl);
   if (!url) throw new ProductParseError(`URL produit invalide : ${pageUrl}`);
   const sourceId = sourceIdFromUrl(url)!;
+  const data = embeddedDetail(html, new URL(url).pathname.slice(3));
 
   const ld = jsonLdBlocks($).find((b) => typeIs(b, "Product")) as JsonLdProduct | undefined;
   const breadcrumbLd = jsonLdBlocks($).find((b) => typeIs(b, "BreadcrumbList")) as
@@ -147,11 +149,22 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
   let priceCents = textPrices.priceCents;
   let stock: StockStatus = findStock(afterTitle);
   let seller = findSeller(afterTitle);
+  let originalPriceCents = textPrices.originalPriceCents;
+  let advertisedDiscountPct = textPrices.advertisedDiscountPct;
+  if (priceCents === null && data?.amount && data.amount > 0) {
+    priceCents = madToCents(data.amount);
+    originalPriceCents = data.old && data.old > data.amount ? madToCents(data.old) : null;
+    advertisedDiscountPct = originalPriceCents ? Math.round((1 - priceCents / originalPriceCents) * 100) : null;
+    extraction = 'embedded-data';
+  }
+  seller ??= data?.seller ?? null;
 
   const offers = ld?.offers ? (Array.isArray(ld.offers) ? ld.offers : [ld.offers]) : [];
   const offer = offers[0];
   if (offer) {
-    const ldPrice = num(offer.price ?? offer.lowPrice);
+    const prices = offers.filter(o => !o.priceCurrency || /^(MAD|DH)$/i.test(o.priceCurrency)).map(o => num(o.price)).filter((n): n is number => n !== null && n > 0);
+    // An AggregateOffer lowPrice is a range bound, not a selected-variant quote.
+    const ldPrice = prices.length && prices.every(n => n === prices[0]) ? prices[0]! : null;
     if (ldPrice !== null && (!offer.priceCurrency || /^(MAD|DH)$/i.test(offer.priceCurrency))) {
       const ldCents = madToCents(ldPrice);
       if (priceCents !== null && Math.abs(ldCents - priceCents) > 1) {
@@ -168,20 +181,42 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
     if (!seller && offer.seller?.name) seller = offer.seller.name;
   }
 
-  if (priceCents === null || priceCents <= 0) throw new ProductParseError("Prix introuvable ou invalide");
+  const sizeHeadings = $('h4, h3, label').filter((_, el) => /^(taille|pointure|size)$/i.test($(el).text().trim()));
+  const sizeButtons = sizeHeadings.next().find('button');
+  const noneAvailable = sizeButtons.length > 0 && sizeButtons.filter((_, b) => !$(b).is('[disabled], [aria-disabled="true"]')).length === 0;
+  if (priceCents === null || priceCents <= 0) throw new ProductParseError(noneAvailable ? 'Aucune variante disponible et aucun prix vérifiable' : "Prix introuvable ou invalide", noneAvailable);
   if (priceCents > madToCents(2_000_000)) throw new ProductParseError(`Prix aberrant : ${priceCents / 100} MAD`);
 
-  const rawSpecs = extractSpecs($, allLines);
+  const rawSpecs = {...data?.specs, ...extractSpecs($, allLines)};
+  // Only enabled size options count as available; disabled options are not evidence of stock.
+  $('h4, h3, label').filter((_, el) => /^(taille|pointure|size)$/i.test($(el).text().trim())).each((_, el) => {
+    const buttons = $(el).next().find('button');
+    if (buttons.length) {
+      const available = buttons.filter((_, b) => !$(b).is('[disabled], [aria-disabled="true"]')).map((_, b) => $(b).text().trim()).get();
+      rawSpecs[$(el).text().trim().toLowerCase().includes('pointure') ? 'Pointures disponibles' : 'Tailles disponibles'] = available.join(', ');
+      stock = available.length ? 'in_stock' : 'out_of_stock';
+    }
+  });
+  const shippingIndex = afterTitle.findIndex(l => /^frais de livraison$/i.test(l.trim()));
+  const fee = shippingIndex >= 0 ? afterTitle[shippingIndex+1] : undefined;
+  if (fee && /^\d+(?:[.,]\d{1,2})?\s*(DH|MAD)$/i.test(fee.trim())) rawSpecs['Livraison affichée (adresse à confirmer)'] = fee.trim();
+  const rawGender = Object.entries(rawSpecs).find(([k]) => /^genre$/i.test(k))?.[1]?.toLowerCase();
+  if (rawGender && /\bhomme\b/i.test(title) && /femme|mixte/i.test(rawGender)) {
+    rawSpecs['Attention données source'] = 'Le titre et le genre de la fiche diffèrent. Compatibilité à confirmer.';
+    warnings.push('Genre contradictoire entre le titre et la fiche');
+  }
+  if (/couleur[^.]{0,15}al[eé]atoire|design[^.]{0,20}al[eé]atoire/i.test(title)) rawSpecs['Attention variante'] = 'Couleur ou modèle aléatoire : le visuel ne garantit pas le produit reçu.';
   const explicitBrand =
     (typeof ld?.brand === "string" ? ld.brand : ld?.brand?.name) ??
     Object.entries(rawSpecs).find(([k]) => /^marque$/i.test(k.trim()))?.[1] ??
-    null;
+    data?.brand ?? null;
   const brand = detectBrand(title, explicitBrand);
   const modelRef = extractModelRef(title, { ...rawSpecs, ...(ld?.mpn ? { Référence: ld.mpn } : {}) });
 
   const ldImage = Array.isArray(ld?.image) ? ld?.image[0] : typeof ld?.image === "object" ? ld?.image?.url : ld?.image;
   const imageUrl =
     safeHttpUrl(ldImage, SITE_ORIGIN) ??
+    safeHttpUrl(data?.image, SITE_ORIGIN) ??
     safeHttpUrl($('meta[property="og:image"]').attr("content"), SITE_ORIGIN) ??
     safeHttpUrl($('img[src*="/catalog/product"]').first().attr("src"), SITE_ORIGIN) ??
     safeHttpUrl($("main img").first().attr("src"), SITE_ORIGIN);
@@ -206,8 +241,8 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
     modelRef,
     imageUrl,
     priceCents,
-    originalPriceCents: textPrices.originalPriceCents,
-    advertisedDiscountPct: textPrices.advertisedDiscountPct,
+    originalPriceCents,
+    advertisedDiscountPct,
     seller,
     stock,
     rating: ratingLd ?? findRating(block),

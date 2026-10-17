@@ -157,9 +157,12 @@ export class PoliteFetcher {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.opts.timeoutMs);
     try {
-      const res = await this.fetchImpl(url, {
+      let current = url;
+      let res: Response;
+      for (let hop = 0; ; hop++) {
+      res = await this.fetchImpl(current, {
         method: "GET",
-        redirect: "follow",
+        redirect: "manual",
         signal: controller.signal,
         headers: {
           "user-agent": this.opts.userAgent,
@@ -167,12 +170,24 @@ export class PoliteFetcher {
           "accept-language": "fr-MA,fr;q=0.9,en;q=0.5",
         },
       });
+      if (![301,302,303,307,308].includes(res.status)) break;
+      if (hop >= 5) throw new HttpError('Trop de redirections', res.status, current);
+      const location = res.headers.get('location');
+      if (!location) break;
+      const next = assertAllowedUrl(new URL(location, current).toString());
+      if (this.robots && !this.robots.isAllowed(next.pathname + next.search)) throw new RobotsDisallowedError(next.pathname + next.search);
+      await res.body?.cancel();
+      await this.sleep(this.opts.minDelayMs);
+      this.requestCount++;
+      this.lastRequestAt = this.now();
+      current = next.toString();
+      }
       // Redirects must stay on the allowed host.
       if (res.url) assertAllowedUrl(res.url);
       const body = await res.text();
       const ra = res.headers.get("retry-after");
       const retryAfterMs = ra ? (Number.isFinite(Number(ra)) ? Number(ra) * 1000 : Math.max(0, Date.parse(ra) - Date.now())) : null;
-      return { url: res.url || url, status: res.status, body, retryAfterMs };
+      return { url: res.url || current, status: res.status, body, retryAfterMs };
     } finally {
       clearTimeout(timer);
     }

@@ -107,7 +107,8 @@ export function canonicalProductKey(
     const v = [variant.screen_size_in && `${variant.screen_size_in}in`, variant.ram_gb && `${variant.ram_gb}ram`, variant.storage_gb && `${variant.storage_gb}st`]
       .filter(Boolean)
       .join("-");
-    return `ref:${normalizeRef(brand)}:${modelRef}${v ? `:${v}` : ""}`;
+    // Without known variant facets, keep offers separate rather than merge different sizes/colours.
+    return v ? `ref:${normalizeRef(brand)}:${modelRef}:${v}` : `src:${sourceId}`;
   }
   return `src:${sourceId}`;
 }

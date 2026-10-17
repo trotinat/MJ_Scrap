@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { PromotionScope } from "@/components/promotion-scope";
 import { Sparkles, Tag } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
-import { DESTOCKAGE_PATHS, profileHighlights, profileIsEmpty, type ShopperProfile } from "@mdw/shared";
+import { DESTOCKAGE_PATHS, profileHighlights, profileIsEmpty, suitsProfile, type ShopperProfile } from "@mdw/shared";
 import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
@@ -32,9 +33,10 @@ function toCard(r: FlashRow, profile: ShopperProfile): DealCardData {
     previousPriceCents: r.previous_price_cents,
     minPriceCents: r.min_price_cents,
     firstSeenAt: r.first_seen_at,
+    observedAt:r.last_seen_at,
     matches: r.matches,
     highlights: profileHighlights(
-      { brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct },
+      { rawSpecs: r.raw_specs, categoryPath: r.category_path, brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct },
       profile,
     ),
   };
@@ -50,14 +52,15 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
   const current = sp.rayon && crawledDestockage.some((d) => d.path === sp.rayon) ? sp.rayon : ALL;
   const paths = current === ALL ? crawledDestockage.map((d) => d.path) : [current];
   const sort = (SORTS.some((s) => s.value === sp.sort) ? sp.sort : "discount") as FlashSort;
+  const scope = sp.scope === "all" ? "all" : "profile";
   const q = sp.q?.trim() || undefined;
 
   // "Tout le déstockage" aggregates (and de-duplicates) the clearance rayons
   // without the promo-only gate; a single rayon shows exactly that page.
   const rows =
-    current === ALL ? await weeklyOffers(paths, { sort, q, requireDeal: false, limit: 300 }) : await flashOffers(current, { sort, q });
+    current === ALL ? await weeklyOffers(paths, { sort, q, scope, requireDeal: false, limit: 300 }) : await flashOffers(current, { sort, q, scope });
   const cards = rows.map((r) => toCard(r, profile));
-  const forYou = hasProfile ? cards.filter((c) => (c.highlights ?? []).some((h) => h.tone === "profile")) : [];
+  const forYou = hasProfile && scope === "profile" ? rows.filter(r => suitsProfile({title:r.title,brand:r.brand,rawSpecs:r.raw_specs,categoryPath:r.category_path,seller:r.seller,priceCents:r.current_price_cents,discountPct:r.advertised_discount_pct},profile)).map(r => toCard(r,profile)) : [];
   const lastCrawl = crawled.filter((c) => paths.includes(c.path)).sort((a, b) => +b.last_success_at - +a.last_success_at)[0];
 
   const qs = (extra: Record<string, string>) => {
@@ -65,6 +68,7 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
     if (current !== ALL) u.set("rayon", current);
     if (sort !== "discount") u.set("sort", sort);
     if (q) u.set("q", q);
+    if (scope === "all") u.set("scope", "all");
     for (const [k, v] of Object.entries(extra)) v ? u.set(k, v) : u.delete(k);
     const s = u.toString();
     return `/destockage${s ? `?${s}` : ""}`;
@@ -94,6 +98,7 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
         }
       />
 
+      <PromotionScope all={scope === "all"} profileHref={qs({scope:""})} allHref={qs({scope:"all"})} />
       <div className="mb-5 flex flex-wrap items-center gap-2">
         {chip(ALL, "Tout le déstockage")}
         {crawledDestockage.filter((d) => d.path !== "/destockage").map((d) => chip(d.path, d.label))}
@@ -102,6 +107,7 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
 
       {crawledDestockage.length > 0 && (
         <form method="get" className="mb-5 flex flex-wrap items-center gap-2">
+          {scope === "all" && <input type="hidden" name="scope" value="all" />}
           {current !== ALL && <input type="hidden" name="rayon" value={current} />}
           <input name="q" type="search" defaultValue={q} placeholder="Rechercher dans le déstockage…" className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:max-w-xs")} aria-label="Recherche" />
           <select name="sort" defaultValue={sort} className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:flex-none")} aria-label="Tri">
@@ -132,7 +138,7 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
                 <h2 className="font-display text-2xl font-bold tracking-tight">Pour vous</h2>
                 <span className="rounded-full bg-tag-soft px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-tag-deep/30">{forYou.length}</span>
               </div>
-              <p className="mb-3 text-sm text-ink-mute">Offres du déstockage qui correspondent à votre profil (marque, budget, genre…).</p>
+              <p className="mb-3 text-sm text-ink-mute">Offres du déstockage qui correspondent à votre profil (marque, vendeur ou genre), après vérification de compatibilité.</p>
               <div className={dealGrid}>
                 {forYou.slice(0, 8).map((c) => (
                   <DealCard key={c.offerId} d={c} />

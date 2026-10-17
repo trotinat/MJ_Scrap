@@ -51,6 +51,8 @@ class FakeSite implements SiteAdapter {
   delayMs = 0;
   requestCount = 0;
   detailCalls = 0;
+  detailUrls: string[] = [];
+  complete = true;
 
   put(p: FakeProduct) {
     this.products.set(p.sourceId, p);
@@ -77,10 +79,11 @@ class FakeSite implements SiteAdapter {
         rating: null,
         listingPath: path,
       }));
-    return { path, items, method: "http", pagesLoaded: 1 };
+    return { path, items, method: "http", pagesLoaded: 1, complete: this.complete };
   }
   async fetchProduct(url: string): Promise<DetailResult> {
     this.detailCalls++;
+    this.detailUrls.push(url);
     const id = url.split("-").pop()!;
     const p = this.products.get(id);
     if (!p) return { kind: "gone", status: 404 };
@@ -126,7 +129,7 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
   let h: DbHandle;
   let site: FakeSite;
   let tg: ReturnType<typeof fakeTelegram>;
-  const logger = createLogger("silent");
+  const logger = createLogger(process.env.TEST_LOG_LEVEL ?? "silent");
   let clock: Date;
 
   const deps = (): PipelineDeps => ({
@@ -171,6 +174,46 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     site.put({ sourceId: "aaad0blender", title: "Blender Denwa BL424CB 1,5 L", priceCents: 23900, path: "/ventes-flash" });
   });
 
+  it("reuses unchanged recent details but refreshes changed prices and expired stock", async()=>{
+    advance(1/60);
+    await runScrape(deps(),"manual");
+    const initial=site.detailCalls;
+    const warm=await runScrape(deps(),"manual");
+    expect(warm.stats.detailCacheHits).toBeGreaterThan(0);
+    expect(warm.stats.notificationsQueued).toBe(0);
+    expect(site.detailCalls-initial).toBeLessThan(initial);
+    const product=site.products.get("abbb332004180907425")!;
+    product.priceCents-=10000;
+    const calls=site.detailCalls;
+    const changed=await runScrape(deps(),"manual");
+    expect(site.detailCalls).toBeGreaterThan(calls);
+    expect(changed.stats.priceDrops).toBeGreaterThan(0);
+    advance(1);
+    const expired=await runScrape(deps(),"manual");
+    expect(expired.stats.detailFetches).toBeGreaterThan(0);
+    expect(expired.stats.detailCacheHits??0).toBe(0);
+  });
+
+  it("checks a newly discovered product before rechecking known cards when details are limited", async () => {
+    await runScrape(deps(), "manual");
+    site.put({ sourceId: "newtv01", title: "Téléviseur Samsung QLED 55 pouces 4K", brand: "Samsung", priceCents: 399900, path: TV_PATH });
+    await saveAppSettings(h.db, { ...DEFAULT_SETTINGS, dealPagePaths: ["/ventes-flash"], maxDetailFetchesPerRun: 1 });
+    const before = site.detailUrls.length;
+    const run = await runScrape(deps(), "manual");
+    expect(run.stats.detailFetches).toBe(1);
+    expect(site.detailUrls.slice(before)).toEqual([site.url("newtv01")]);
+  });
+
+  it("scans personal searches each run but defers recent promo pages on scheduled runs",async()=>{
+    await runScrape(deps(),"manual");
+    const quick=await runScrape(deps(),"schedule");
+    expect(quick.stats.promoPagesSkipped).toBe(1);
+    expect(quick.stats.listingPaths).toBe(2);
+    const manual=await runScrape(deps(),"manual");
+    expect(manual.stats.promoPagesSkipped).toBe(0);
+    expect(manual.stats.listingPaths).toBe(3);
+  });
+
   it("collects, stores history, matches criteria independently and notifies once", async () => {
     const r1 = await runScrape(deps(), "manual");
     expect(r1.status).toBe("success");
@@ -181,9 +224,10 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     expect((await h.db.select({ n: count() }).from(productOffers))[0]!.n).toBe(4);
     const matches = await h.db.select().from(dealMatches).where(eq(dealMatches.isMatch, true));
     expect(matches).toHaveLength(2); // Samsung TV (TV criterion) + laptop (laptop criterion)
-    // The 50" TCL violates the mandatory 55" requirement: stored as an offer, never a match.
+    // The 50" TCL violates the mandatory 55" requirement: retain the negative
+    // evaluation so its unchanged detail page need not be fetched next run.
     const nonMatches = await h.db.select().from(dealMatches).where(eq(dealMatches.isMatch, false));
-    expect(nonMatches).toHaveLength(0);
+    expect(nonMatches).toHaveLength(1);
 
     expect(tg.sent).toHaveLength(1);
     expect(tg.sent.join("\n")).toContain("Téléviseur Samsung QLED 55 pouces");
@@ -348,6 +392,26 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     expect((await h.db.select({ n: count() }).from(products))[0]!.n).toBe(4);
     expect((await h.db.select({ n: count() }).from(priceHistory))[0]!.n).toBe(4);
     expect((await h.db.select({ n: count() }).from(notifications))[0]!.n).toBe(1);
+  });
+
+  it('does not infer missing offers from truncated listings', async () => {
+    await runScrape(deps(), 'manual');
+    site.products.delete('aaac0laptop1');
+    site.complete = false;
+    // Direct refresh cannot rescue the missing product in this scenario.
+    await saveAppSettings(h.db, {...DEFAULT_SETTINGS,dealPagePaths:['/ventes-flash'],missingAfterRuns:1,maxDetailFetchesPerRun:0});
+    await runScrape(deps(), 'manual');
+    const [offer] = await h.db.select().from(productOffers).where(eq(productOffers.sourceId,'aaac0laptop1'));
+    expect(offer!.status).toBe('active');
+    expect(offer!.consecutiveMisses).toBe(0);
+  });
+
+  it('gives a confirmed product 404 precedence over a stale listing card', async () => {
+    await runScrape(deps(), 'manual');
+    site.fetchProduct = async () => ({kind:'gone',status:404});
+    await runScrape(deps(), 'manual');
+    const [offer] = await h.db.select().from(productOffers).where(eq(productOffers.sourceId,'abbb332004180907425'));
+    expect(offer!.status).toBe('unavailable');
   });
 
   describe("scheduler", () => {

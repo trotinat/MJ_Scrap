@@ -54,6 +54,11 @@ export function ProfileForm({ initial }: { initial: ShopperProfile }) {
       )}
 
       <Card title="Qui achète">
+        <label className="mb-5 block text-sm font-medium">Destinataire des promos
+          <select className={cx(input,"mt-2")} value={p.audience ?? (p.genders.some(g => ["Garçon","Fille"].includes(g)) ? "child" : "adult")} onChange={e => setP({...p,audience:e.target.value as "adult" | "child" | "all"})}>
+            <option value="adult">Pour un adulte</option><option value="child">Pour un enfant</option><option value="all">Toute la famille / cadeaux</option>
+          </select>
+        </label>
         <div className="space-y-5">
           <div>
             <p className="mb-2 flex items-center gap-2 text-sm font-medium text-ink"><User className="h-4 w-4 text-ink-mute" /> Genre</p>
@@ -74,6 +79,7 @@ export function ProfileForm({ initial }: { initial: ShopperProfile }) {
           <div>
             <p className="mb-2 flex items-center gap-2 text-sm font-medium text-ink"><Palette className="h-4 w-4 text-ink-mute" /> Couleurs préférées</p>
             <Chips values={MARJANE_FACETS.color.values} selected={p.colors} onToggle={toggle("colors")} />
+            <label className="mt-3 flex gap-2 text-sm text-ink-soft"><input type="checkbox" checked={p.strictColors ?? p.colors.length > 0} onChange={e => setP({...p,strictColors:e.target.checked})} /> Masquer les vêtements et chaussures dont la couleur choisie n’est pas confirmée</label>
           </div>
         </div>
       </Card>
@@ -93,6 +99,13 @@ export function ProfileForm({ initial }: { initial: ShopperProfile }) {
             <TagInput value={p.preferredSellers} onChange={(v) => setP({ ...p, preferredSellers: v })} placeholder="MARJANE" ariaLabel="Vendeurs préférés" />
           </div>
         </div>
+      </Card>
+
+      <Card title="Ce que je ne souhaite pas voir">
+        <label className="flex items-start gap-3 text-sm text-ink">
+          <input type="checkbox" checked={p.hiddenCategories?.includes("makeup") ?? false} onChange={e => setP({...p,hiddenCategories:e.target.checked ? ["makeup"] : []})} className="mt-0.5 h-4 w-4 accent-emerald-900" />
+          <span>Masquer le maquillage dans mes promos<p className="mt-1 text-ink-mute">Rouges à lèvres, gloss, fards et produits de maquillage. Les soins et protections solaires restent visibles. Le catalogue « Toutes les offres / cadeaux » reste accessible.</p></span>
+        </label>
       </Card>
 
       <Card title="Budget">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PromotionScope } from "@/components/promotion-scope";
 import { Zap } from "lucide-react";
 import { getAppSettings, getDb } from "@mdw/database";
 import { profileHighlights } from "@mdw/shared";
@@ -13,6 +14,8 @@ export const metadata = { title: "Offres" };
 const WEEK = "semaine";
 
 const PAGE_LABELS: Record<string, string> = {
+  "/panier-malin": "Panier Malin",
+  "/trouvailles-marjane-mall": "Trouvailles",
   [WEEK]: "Cette semaine",
   "/ventes-flash": "Ventes flash",
   "/destockage": "Déstockage",
@@ -31,13 +34,20 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const [crawled, settings] = await Promise.all([flashPages(), getAppSettings(getDb())]);
   // Configured promotion pages first, then any other crawled page (e.g. one used by a criterion).
-  const tabs = [WEEK, ...new Set([...settings.dealPagePaths, ...crawled.filter((c) => PAGE_LABELS[c.path]).map((c) => c.path)])];
+  const tabs = [WEEK, ...new Set([...settings.dealPagePaths, ...crawled.filter((c) => PAGE_LABELS[c.path] || (+c.last_success_at>Date.now()-86400_000 && /^\/(panier-malin|trouvailles-marjane-mall|les-deals-|tout-a-moins-de-)/.test(c.path))).map((c) => c.path)])];
   const current = sp.page && tabs.includes(sp.page) ? sp.page : WEEK;
   const sort = (SORTS.some((s) => s.value === sp.sort) ? sp.sort : "discount") as FlashSort;
+  const scope = sp.scope === "all" ? "all" : "profile";
   const isWeek = current === WEEK;
   const crawl = isWeek ? (crawled.length ? crawled.reduce((a, b) => (a.last_success_at > b.last_success_at ? a : b)) : undefined) : crawled.find((c) => c.path === current);
-  const rows = !crawl ? [] : isWeek ? await weeklyOffers(settings.dealPagePaths, { sort, q: sp.q }) : await flashOffers(current, { sort, q: sp.q });
-  const href = (page: string) => `/ventes-flash?page=${encodeURIComponent(page)}${sort !== "discount" ? `&sort=${sort}` : ""}`;
+  const rows = !crawl ? [] : isWeek ? await weeklyOffers(settings.dealPagePaths, { sort, q: sp.q, scope, includeCampaigns:true }) : await flashOffers(current, { sort, q: sp.q, scope });
+  const href = (page: string, mode = scope) => {
+    const params = new URLSearchParams({ page });
+    if (sort !== "discount") params.set("sort", sort);
+    if (sp.q) params.set("q", sp.q);
+    if (mode === "all") params.set("scope", "all");
+    return `/ventes-flash?${params}`;
+  };
 
   return (
     <>
@@ -49,6 +59,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
         }
       />
 
+      <PromotionScope all={scope === "all"} profileHref={href(current, "profile")} allHref={href(current, "all")} />
       <div className="mb-4 flex flex-wrap gap-2" role="tablist">
         {tabs.map((t) => (
           <Link
@@ -66,12 +77,13 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
 
       {!crawl ? (
         <EmptyState icon={Zap} title={`« ${label(current)} » n'a pas encore été lue`}>
-          Lancez une vérification : cette page est lue même sans recherche enregistrée. Les offres apparaissent ici en moins d'une minute.
+          Lancez une vérification : cette page est lue même sans recherche enregistrée. Les offres apparaîtront après la collecte.
         </EmptyState>
       ) : (
         <>
           <form method="get" className="mb-4 flex flex-wrap items-center gap-2">
             <input type="hidden" name="page" value={current} />
+            {scope === "all" && <input type="hidden" name="scope" value="all" />}
             <input name="q" type="search" defaultValue={sp.q} placeholder="Rechercher…" className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:max-w-xs")} aria-label="Recherche" />
             <select name="sort" defaultValue={sort} className={cx(input, "!w-auto min-w-0 flex-1 basis-40 sm:flex-none")} aria-label="Tri">
               {SORTS.map((s) => (
@@ -107,9 +119,10 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
                     previousPriceCents: r.previous_price_cents,
                     minPriceCents: r.min_price_cents,
                     firstSeenAt: r.first_seen_at,
+                    observedAt:r.last_seen_at,
                     matches: r.matches,
                     highlights: profileHighlights(
-                      { brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct },
+                      { rawSpecs: r.raw_specs, categoryPath: r.category_path, brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct },
                       settings.shopperProfile,
                     ),
                   }}

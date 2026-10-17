@@ -17,7 +17,17 @@ export function historyFacts(observations: Observation[]): PriceHistoryFacts {
     return { observationCount: 0, previousPriceCents: null, minPriceCents: null, previousMinPriceCents: null, firstSeenAt: null };
   }
   const before = sorted.slice(0, -1);
+  const cutoff = sorted[n-1]!.observedAt.getTime()-30*86400_000;
+  const days = new Map<string,number[]>();
+  for (const o of before) if (o.observedAt.getTime() >= cutoff) {
+    const day=o.observedAt.toISOString().slice(0,10);
+    days.set(day,[...(days.get(day)??[]),o.priceCents]);
+  }
+  const median=(values:number[])=>{const a=[...values].sort((a,b)=>a-b);const m=Math.floor(a.length/2);return a.length%2?a[m]!:Math.round((a[m-1]!+a[m]!)/2);};
+  const dailyPrices=[...days.values()].map(median);
   return {
+    typical30DayCents: dailyPrices.length>=5 ? median(dailyPrices) : null,
+    observedDays30:dailyPrices.length,
     observationCount: n,
     previousPriceCents: before.length ? before[before.length - 1]!.priceCents : null,
     minPriceCents: Math.min(...sorted.map((o) => o.priceCents)),

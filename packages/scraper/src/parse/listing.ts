@@ -43,9 +43,10 @@ export function parseListingHtml(html: string, listingPath: string): ListingItem
     const prices = parsePriceLines(lines);
     if (prices.priceCents === null) return; // not a product card (e.g. a text link)
 
-    const img = card.find("img").first();
+    const img = card.find("img").filter((_, el) => !/^(express icon|brand|logo|livraison|delivery)/i.test($(el).attr('alt')?.trim() ?? '')).first();
     const title = cleanTitle(
       anchor.attr("title") ||
+        card.find('h2, h3, h4').first().text().trim() ||
         img.attr("alt") ||
         lines.filter((l) => !NON_TITLE.test(l) && l.length >= 8).sort((x, y) => y.length - x.length)[0] ||
         "",

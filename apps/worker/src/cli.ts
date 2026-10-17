@@ -26,6 +26,7 @@ import { loadConfig } from "./config";
 import { createLogger } from "./logger";
 import { lazyDeps } from "./deps";
 import { runScrape } from "./pipeline";
+import { reevaluateSaved } from './reevaluate';
 
 const USAGE = `Usage : node dist/cli.js <commande>
 
@@ -35,6 +36,7 @@ const USAGE = `Usage : node dist/cli.js <commande>
   reset-password <email>  Change le mot de passe d'un administrateur.
   seed-examples           Ajoute les 3 critères d'exemple (désactivés).
   run-now                 Lance immédiatement une collecte complète.
+  reevaluate              Revérifie les offres enregistrées, sans collecte ni envoi d'alertes.
   probe [chemins…]        Validation en conditions réelles : extrait des pages de Marjane Mall,
                           affiche les résultats et enregistre le HTML brut (fixtures/live).
   test-telegram           Envoie un message de test sur Telegram.
@@ -113,6 +115,12 @@ async function main() {
         if (outcome.status === "failed") process.exitCode = 2;
         break;
       }
+      case 'reevaluate': {
+        const result = await reevaluateSaved(db, pool);
+        if (!result.acquired) throw new Error('Une collecte est en cours. Réessayez après sa fin.');
+        console.log(JSON.stringify(result.value));
+        break;
+      }
       case "probe": {
         await probe(config, args);
         break;
@@ -165,16 +173,9 @@ async function probe(config: ReturnType<typeof loadConfig>, args: string[]) {
         const raw = await adapter.fetchRaw(`https://www.marjanemall.ma${p}`);
         const file = path.join(outDir, `${stamp}_listing_${slug}.html`);
         await writeFile(file, raw.body);
-        const httpItems = parseListingHtml(raw.body, p);
-        console.log(`HTTP ${raw.status} — ${httpItems.length} produits extraits du HTML serveur (${file})`);
-        let items = httpItems;
-        if (httpItems.length === 0 && config.RENDER_MODE !== "never") {
-          const html = await adapter.renderRaw(`https://www.marjanemall.ma${p}`, 2);
-          const rfile = path.join(outDir, `${stamp}_rendered_${slug}.html`);
-          await writeFile(rfile, html);
-          items = parseListingHtml(html, p);
-          console.log(`Rendu navigateur — ${items.length} produits extraits (${rfile})`);
-        }
+        const result = await adapter.discover(p, 2);
+        const items = result.items;
+        console.log(`HTTP ${raw.status} — acquisition ${result.method}, ${result.pagesLoaded} lot(s), ${items.length} produits ; couverture ${result.complete ? 'complète' : 'limitée'} (${file})`);
         if (items.length === 0) failures++;
         for (const it of items.slice(0, 5)) {
           console.log(

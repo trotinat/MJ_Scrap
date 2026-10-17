@@ -7,6 +7,7 @@ import { listNotifications } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, NOTIF_STATUS_LABELS } from "@/lib/format";
 import { retryNotificationAction } from "./actions";
 import { TestNotificationForm } from "./test-form";
+import { telegramStatus } from '@/lib/telegram-status';
 
 export const metadata = { title: "Alertes" };
 
@@ -16,15 +17,17 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const { status: rawStatus } = await searchParams;
   const status = STATUSES.find((s) => s === rawStatus);
   const rows = await listNotifications(status);
-  const configured = telegramConfigFromEnv() !== null;
+  const telegram = await telegramStatus();
+  const configured = telegram.configured;
 
   return (
     <>
       <PageHeader
         title="Alertes"
-        description="Les bons plans de vos recherches, envoyés sur Telegram. Un même bon plan n'est jamais envoyé deux fois."
-        actions={configured ? <TestNotificationForm /> : undefined}
+        description="Nouvelles correspondances et baisses de prix de vos recherches. Les offres inchangées ne déclenchent pas de nouvelle alerte."
+        actions={telegramConfigFromEnv() ? <TestNotificationForm /> : undefined}
       />
+      {configured && <section className="mb-6 rounded-2xl border border-paper-line bg-paper-card p-5"><p className="font-semibold">{telegram.label}</p><p className="mt-2 text-sm text-ink-mute">{telegram.ready ? `${telegram.subscribers} abonnement(s) actif(s). Les alertes respectent vos recherches et les paramètres de notification.` : 'Le bot réessaie automatiquement en cas de coupure. Ouvrez votre bot dans Telegram et envoyez /start pour vous abonner.'}</p>{telegram.username && <a className="mt-3 inline-flex text-sm font-semibold text-proof hover:underline" href={`https://t.me/${telegram.username}`} target="_blank" rel="noopener noreferrer">Ouvrir @{telegram.username} ↗</a>}</section>}
 
       {!configured && (
         <section className="mb-8 rounded-3xl bg-ink p-5 text-white sm:p-7">
@@ -37,15 +40,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
               Dans Telegram, ouvrez <b>@BotFather</b>, envoyez <code className="rounded bg-white/10 px-1">/newbot</code> et suivez les questions. Copiez le
               jeton qu&apos;il vous donne.
             </Step>
-            <Step n={2} title="Trouvez votre identifiant">
-              Envoyez « bonjour » à votre robot, puis ouvrez dans le navigateur{" "}
-              <code className="break-all rounded bg-white/10 px-1">api.telegram.org/bot&lt;jeton&gt;/getUpdates</code> : votre identifiant est le
-              nombre après <code className="rounded bg-white/10 px-1">&quot;chat&quot;:{"{"}&quot;id&quot;:</code>
+            <Step n={2} title="Reliez votre robot">
+              Renseignez <code>TELEGRAM_BOT_TOKEN</code> dans la configuration locale, puis relancez l’application. Aucun identifiant de chat à chercher.
             </Step>
-            <Step n={3} title="Collez-les dans .env">
-              Dans le dossier <b>MJ_Scrap</b>, ouvrez le fichier <code className="rounded bg-white/10 px-1">.env</code> et remplissez{" "}
-              <code className="rounded bg-white/10 px-1">TELEGRAM_BOT_TOKEN=</code> et <code className="rounded bg-white/10 px-1">TELEGRAM_CHAT_ID=</code>, puis
-              relancez l&apos;application.
+            <Step n={3} title="Activez sur votre téléphone">
+              Ouvrez votre robot dans Telegram et envoyez <code>/start</code>. Utilisez <code>/pause</code> pour suspendre les alertes et <code>/reprendre</code> pour les réactiver.
             </Step>
           </ol>
         </section>

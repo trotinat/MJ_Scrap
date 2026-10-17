@@ -37,6 +37,8 @@ function channelCandidates(choice: RenderOptions["channel"]): (string | undefine
  * closed afterwards.
  */
 export class ListingRenderer {
+  pagesLoaded = 0;
+  private lastNavigationAt = 0;
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
 
@@ -45,7 +47,7 @@ export class ListingRenderer {
   private async ensure(): Promise<BrowserContext> {
     if (this.context) return this.context;
     const { chromium } = await import("playwright");
-    const args = ["--disable-dev-shm-usage", "--no-zygote", "--disable-gpu", "--disable-extensions", "--disable-blink-features=AutomationControlled"];
+    const args = ["--disable-dev-shm-usage", "--no-zygote", "--disable-gpu", "--disable-extensions"];
     const candidates = channelCandidates(this.opts.channel);
     let lastError: unknown;
     for (const channel of candidates) {
@@ -71,12 +73,11 @@ export class ListingRenderer {
       viewport: { width: 1366, height: 900 },
       javaScriptEnabled: true,
     });
-    // Reduce the automation fingerprint that some WAFs score against.
-    await this.context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    });
     await this.context.route("**/*", (route) => {
       const req = route.request();
+      if (req.isNavigationRequest()) {
+        try { assertAllowedUrl(req.url()); } catch { return route.abort(); }
+      }
       const type = req.resourceType();
       if (type === "image" || type === "font" || type === "media") return route.abort();
       let host = "";
@@ -99,6 +100,10 @@ export class ListingRenderer {
     const ctx = await this.ensure();
     const page = await ctx.newPage();
     try {
+      const delay = this.lastNavigationAt + this.opts.minDelayMs - Date.now();
+      if (delay > 0) await page.waitForTimeout(delay);
+      this.lastNavigationAt = Date.now();
+      this.pagesLoaded = 1;
       const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: this.opts.timeoutMs });
       const status = resp?.status() ?? 0;
       await page.waitForSelector('a[href*="/p/"]', { timeout: Math.min(20_000, this.opts.timeoutMs) }).catch(() => undefined);
@@ -109,15 +114,17 @@ export class ListingRenderer {
 
       let previousCount = await page.locator('a[href*="/p/"]').count();
       for (let i = 1; i < this.opts.maxPages; i++) {
+        await page.waitForTimeout(this.opts.minDelayMs);
         await page.mouse.wheel(0, 6000);
         await page.waitForTimeout(400);
         const more = page.getByRole("button", { name: /voir plus|charger plus|afficher plus/i }).first();
         if (await more.isVisible().catch(() => false)) {
           await more.click({ timeout: 5000 }).catch(() => undefined);
         }
-        await page.waitForTimeout(1200);
+        await page.waitForFunction((before) => document.querySelectorAll('a[href*="/p/"]').length > before, previousCount, {timeout: Math.min(10000, this.opts.timeoutMs)}).catch(() => undefined);
         const count = await page.locator('a[href*="/p/"]').count();
         if (count <= previousCount) break; // nothing more loaded
+        this.pagesLoaded++;
         previousCount = count;
       }
       return await page.content();

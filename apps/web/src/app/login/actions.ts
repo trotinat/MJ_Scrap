@@ -1,6 +1,7 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { isDirectLocalRequest } from "@/lib/local-access";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -40,7 +41,7 @@ export async function login(_prev: { error?: string; email?: string }, formData:
   const { token, expiresAt } = await createSession(db, user.id, { ip, userAgent: null });
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: COOKIE_SECURE,
+    secure: COOKIE_SECURE || !isDirectLocalRequest(await headers()),
     sameSite: "lax",
     path: "/",
     expires: expiresAt,

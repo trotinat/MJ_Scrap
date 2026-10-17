@@ -24,6 +24,8 @@ export async function saveSettingsAction(_prev: SettingsState, fd: FormData): Pr
       .map((s) => s.trim())
       .filter(Boolean),
     maxListingPagesPerPath: num(fd, "maxListingPagesPerPath"),
+    detailCacheMinutes: num(fd,"detailCacheMinutes"),
+    promoRefreshHours: num(fd,"promoRefreshHours"),
     maxDetailFetchesPerRun: num(fd, "maxDetailFetchesPerRun"),
     requestDelayMs: Math.round(num(fd, "requestDelaySeconds") * 1000),
     missingAfterRuns: num(fd, "missingAfterRuns"),

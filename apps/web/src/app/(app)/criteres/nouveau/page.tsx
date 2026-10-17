@@ -10,9 +10,10 @@ export default function NewCriterionPage() {
   const filters = criterionFiltersSchema.innerType().parse({});
   return (
     <>
-      <PageHeader title="Nouveau critère de recherche" description="Les champs facultatifs peuvent rester vides." />
+      <PageHeader title="Nouvelle recherche" description="Dites ce que vous cherchez, vérifiez quelques produits, puis activez la surveillance." />
       <CriterionForm
         submitLabel="Créer le critère"
+        previewBeforeSave
         action={createCriterionAction}
         initial={{ name: "", description: "", enabled: true, notifyMode: "all", notifyMinScore: 50, minPriceDropPct: 5, filters }}
       />

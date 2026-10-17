@@ -1,26 +1,22 @@
 import type { Config } from "tailwindcss";
 
-/**
- * Visual identity: a market stall. Forest-green ink on warm paper, the amber
- * tag carries the price, coral marks the advertised discount and green only
- * what our own price history proves.
- */
+/** Deal radar: cool canvas, cobalt actions, lime highlights, teal proof. */
 export default {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        ink: { DEFAULT: "#12322A", soft: "#3F5A51", mute: "#74867F" },
-        paper: { DEFAULT: "#F6F3EC", card: "#FFFFFF", line: "#E5E0D3" },
-        tag: { DEFAULT: "#FFB627", deep: "#E39A0B", soft: "#FFF1D1" },
-        promo: { DEFAULT: "#E4452B", soft: "#FCE7E2" },
-        proof: { DEFAULT: "#1C8A57", soft: "#E1F3E9" },
-        forest: { DEFAULT: "#0B2B24", light: "#12392F", line: "#1F4A3E" },
-        brand: { 50: "#EDF3F0", 100: "#DCE7E2", 500: "#3F5A51", 600: "#12322A", 700: "#0B2B24", 900: "#071D18" },
+        ink: { DEFAULT: "#17203A", soft: "#43516F", mute: "#66728C" },
+        paper: { DEFAULT: "#F4F6FB", card: "#FFFFFF", line: "#DCE2EE" },
+        tag: { DEFAULT: "#D8F279", deep: "#3549D6", soft: "#F0F9CF" },
+        promo: { DEFAULT: "#B93D50", soft: "#FCE9EC" },
+        proof: { DEFAULT: "#087D70", soft: "#DDF5EF" },
+        forest: { DEFAULT: "#17203A", light: "#273554", line: "#394563" },
+        brand: { 50: "#EEF0FF", 100: "#DCE1FF", 500: "#5266E9", 600: "#3549D6", 700: "#283ABB", 900: "#17203A" },
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans Variable"', "system-ui", "Segoe UI", "Roboto", "sans-serif"],
-        display: ['"Fraunces Variable"', "Georgia", "serif"],
+        display: ['"Plus Jakarta Sans Variable"', "system-ui", "sans-serif"],
       },
       fontSize: {
         price: ["1.75rem", { lineHeight: "1", letterSpacing: "-0.02em", fontWeight: "800" }],

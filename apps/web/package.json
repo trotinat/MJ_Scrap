@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 3000 -H 127.0.0.1",
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -17,6 +17,7 @@
     "@mdw/database": "workspace:*",
     "@mdw/notifications": "workspace:*",
     "@mdw/scoring": "workspace:*",
+    "@mdw/scraper": "workspace:*",
     "@mdw/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "exceljs": "^4.4.0",

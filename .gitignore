@@ -1,5 +1,18 @@
 node_modules/
 .next/
+.next-check/
+.next-preview/
+.next-preview-final/
+.next-cap-check/
+.next-results/
+.next-results-final/
+.next-results-v3/
+.next-home-variety/
+.next-home-variety-final/
+.next-home-v3/
+.next-home-v4/
+.next-search-collect/
+.next-categories-verified/
 dist/
 out/
 coverage/
@@ -17,3 +30,4 @@ next-env.d.ts
 .localdb/
 .localbuild
 .localbrowser
+.audit/

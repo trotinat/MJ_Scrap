@@ -22,7 +22,9 @@
     "db:migrate": "pnpm --filter @mdw/worker exec tsx src/cli.ts migrate",
     "admin:create": "pnpm --filter @mdw/worker exec tsx src/cli.ts create-admin",
     "scrape:now": "pnpm --filter @mdw/worker exec tsx src/cli.ts run-now",
+    "reevaluate": "pnpm --filter @mdw/worker exec tsx src/cli.ts reevaluate",
     "probe": "pnpm --filter @mdw/worker exec tsx src/cli.ts probe",
+    "categories:update": "node --experimental-strip-types scripts/update-category-catalog.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest"

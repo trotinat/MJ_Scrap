@@ -14,7 +14,7 @@
  * Ctrl+C arrête tout proprement.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +74,7 @@ const run = (args) =>
 
 const PROD = process.argv.includes("--prod");
 const children = [];
+const hasBotToken = Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN.trim());
 let shuttingDown = false;
 const shutdown = async (code = 0) => {
   if (shuttingDown) return;
@@ -107,6 +108,16 @@ if (!PROD) {
   const dev = spawn("pnpm", ["dev"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
   children.push(dev);
   dev.on("exit", (code) => void shutdown(code ?? 0));
+  // The Telegram bot runs alongside the app (only one instance may poll a token).
+  if (hasBotToken) {
+    const bot = spawn("pnpm", ["dev:bot"], { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
+    children.push(bot);
+    // The bot is auxiliary: if it stops, keep the app running (just report it).
+    bot.on("exit", (code) => { if (!shuttingDown) console.error(`Bot Telegram arrêté (code ${code}).`); });
+    console.log("Bot Telegram : démarré (envoyez /start au bot pour vous abonner).");
+  } else {
+    console.log("Bot Telegram : désactivé (renseignez TELEGRAM_BOT_TOKEN dans .env pour l'activer).");
+  }
 } else {
   // Production build: compiled once, rebuilt only when the code changes (git commit).
   const stampFile = path.join(root, ".localbuild");
@@ -117,7 +128,15 @@ if (!PROD) {
     // not a git checkout: rebuild every time
   }
   // The login setting is compiled into the web app: rebuild when it changes.
-  const stamp = `${commit}:auth-disabled=${process.env.AUTH_DISABLED}`;
+  let sourceHash = randomBytes(8).toString('hex');
+  try {
+    const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {cwd:root}).toString().split('\0')
+      .filter(f => /^(apps|packages|scripts)\//.test(f) || /^(package.json|pnpm-lock.yaml|tsconfig.base.json)$/.test(f)).sort();
+    const hash = createHash('sha256');
+    for (const file of files) { hash.update(file); if (existsSync(path.join(root,file))) hash.update(readFileSync(path.join(root,file))); }
+    sourceHash = hash.digest('hex');
+  } catch { /* An unknown source state always forces a fresh build. */ }
+  const stamp = `${commit}:${sourceHash}:auth-disabled=${process.env.AUTH_DISABLED}`;
   const webBuildId = path.join(root, "apps/web/.next/BUILD_ID");
   const nextBin = path.join(root, "apps/web/node_modules/next/dist/bin/next");
   const workerEntry = path.join(root, "apps/worker/dist/index.js");
@@ -164,6 +183,20 @@ if (!PROD) {
   children.push(web, worker);
   web.on("exit", (code) => void shutdown(code ?? 0));
   worker.on("exit", (code) => void shutdown(code ?? 0));
+  // The Telegram bot runs alongside the app (only one instance may poll a token).
+  if (hasBotToken) {
+    const bot = spawn(process.execPath, [path.join(root, "apps/worker/dist/bot.js")], {
+      cwd: path.join(root, "apps/worker"),
+      stdio: "inherit",
+      env: { ...env, MIGRATIONS_DIR: path.join(root, "packages/database/drizzle") },
+    });
+    children.push(bot);
+    // The bot is auxiliary: if it stops, keep the app running (just report it).
+    bot.on("exit", (code) => { if (!shuttingDown) console.error(`Bot Telegram arrêté (code ${code}).`); });
+    console.log("Bot Telegram : démarré (envoyez /start au bot pour vous abonner).");
+  } else {
+    console.log("Bot Telegram : désactivé (renseignez TELEGRAM_BOT_TOKEN dans .env pour l'activer).");
+  }
   console.log(`\nTableau de bord : http://localhost:${env.PORT}   (Ctrl+C pour tout arrêter)\n`);
   if (process.env.OPEN_BROWSER === "1") void openWhenReady(`http://localhost:${env.PORT}`);
 }

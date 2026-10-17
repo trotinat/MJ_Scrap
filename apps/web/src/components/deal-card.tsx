@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { deriveGallery, type Highlight } from "@mdw/shared";
+import { RetailerLink } from "./retailer-link";
+import { CheckCheck, TrendingDown } from "lucide-react";
+import { DEAL_CLASS_LABELS, deriveGallery, type DealClass, type Highlight } from "@mdw/shared";
 import { cx } from "./ui";
 import { ProductGallery } from "./product-gallery";
 import { formatMad } from "@/lib/format";
@@ -19,8 +20,11 @@ export interface DealCardData {
   firstSeenAt: Date | string | null;
   matches?: { id: string; name: string }[];
   status?: string;
+  score?: number;
+  dealClass?: DealClass;
   /** Profile / promo badges computed upstream from the shopper profile. */
   highlights?: Highlight[];
+  observedAt?: Date | string | null;
 }
 
 const DAY = 24 * 3600_000;
@@ -48,52 +52,57 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
   return (
     <article
       className={cx(
-        "group relative flex flex-col overflow-hidden rounded-2xl border bg-paper-card card-soft transition duration-200 hover:-translate-y-1",
-        profileTags.length > 0 ? "border-tag-deep/60 ring-1 ring-tag-deep/30" : "border-paper-line hover:border-tag-deep/40",
+        "group relative flex flex-col overflow-hidden rounded-[1.35rem] border bg-paper-card card-soft transition-transform duration-200 hover:-translate-y-0.5",
+        d.matches?.length ? "border-brand-100" : "border-paper-line hover:border-brand-100",
         big && "sm:flex-row",
         d.status && d.status !== "active" && "opacity-60",
       )}
     >
       <Link
         href={`/produits/${d.offerId}`}
-        className={cx("relative block bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-tag-deep", big && "sm:w-1/2 sm:shrink-0")}
+        className={cx("relative block bg-[#F7F8FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600", big && "sm:w-1/2 sm:shrink-0")}
         aria-label={d.title}
       >
-        <ProductGallery images={gallery} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-square" : "aspect-square")} />
+        <ProductGallery images={gallery} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-[5/4]" : "aspect-[5/4]")} />
         {d.discountPct !== null && d.discountPct > 0 && (
           <span
-            className="num absolute left-2 top-2 rounded-lg bg-promo px-2 py-1 font-display text-sm font-extrabold text-white shadow-sm"
+            className="num absolute left-2 top-2 rounded-lg bg-white/95 px-2 py-1 text-xs font-extrabold text-promo shadow-sm"
             title="Remise annoncée par Marjane Mall"
           >
-            -{Math.round(d.discountPct)}%
+            -{Math.round(d.discountPct)}% <span className="text-[9px] font-semibold">annoncés</span>
           </span>
         )}
-        {profileTags.length > 0 && (
-          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-tag px-2 py-0.5 text-[11px] font-bold text-forest shadow-sm">
-            ★ Pour vous
+        {Boolean(d.matches?.length) && (
+          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-[10px] font-bold text-white shadow-sm">
+            <CheckCheck className="h-3 w-3" /> Pour vous
           </span>
         )}
         {f.lowest && (
-          <span className="absolute bottom-2 left-2 rounded-full bg-proof px-2 py-0.5 text-xs font-semibold text-white">Prix le plus bas relevé</span>
+          <span className="absolute bottom-2 left-2 rounded-lg bg-proof px-2 py-1 text-[10px] font-bold text-white">Prix le plus bas relevé</span>
         )}
       </Link>
 
-      <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-4 sm:p-5" : "p-3")}>
+      <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-5 sm:p-6" : "p-3.5")}>
+        {d.score !== undefined && d.dealClass && (
+          <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
+            {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100
+          </p>
+        )}
         {profileTags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {profileTags.slice(0, 3).map((h) => (
-              <span key={h.label} className="rounded-full bg-tag-soft px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-tag-deep/30">
+              <span key={h.label} className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
                 {h.label}
               </span>
             ))}
           </div>
         )}
-        {d.brand && <p className="truncate text-xs font-medium text-ink-mute">{d.brand}</p>}
-        <Link href={`/produits/${d.offerId}`} className={cx("font-medium leading-snug text-ink hover:underline", big ? "line-clamp-3 font-display text-xl font-semibold" : "line-clamp-2 min-h-[2.5rem] text-sm font-semibold")}>
+        {d.brand && <p className="truncate text-[11px] font-extrabold uppercase tracking-[.12em] text-brand-600">{d.brand}</p>}
+        <Link href={`/produits/${d.offerId}`} className={cx("font-semibold leading-snug text-ink hover:underline", big ? "line-clamp-3 font-display text-xl font-extrabold" : "line-clamp-2 min-h-[2.5rem] text-sm")}>
           {d.title}
         </Link>
 
-        <div className="mt-auto flex flex-wrap items-end gap-x-2 gap-y-1 pt-1">
+        <div className="mt-auto flex flex-wrap items-end gap-x-2 gap-y-1 border-t border-paper-line pt-3">
           <span className={cx("price-tag num font-extrabold", big ? "text-3xl" : "text-xl")}>
             {shortMad(d.priceCents)}
             <span className="text-xs font-bold">DH</span>
@@ -105,23 +114,27 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
 
         {(f.saving || f.dropped) && (
           <div className="num space-y-0.5 text-xs">
-            {f.saving && <p className="font-semibold text-proof">Vous économisez {shortMad(f.saving)} DH</p>}
+            {f.saving && <p className="text-ink-mute">{shortMad(f.saving)} DH sous le prix barré annoncé</p>}
             {f.dropped && (
               <p className="font-semibold text-proof" title="Calculé sur nos propres relevés de prix">
-                -{f.dropPct}% depuis le dernier relevé
+                <TrendingDown className="mr-1 inline h-3.5 w-3.5" /> -{f.dropPct}% mesurés depuis le dernier relevé
               </p>
             )}
           </div>
         )}
 
+        <p className="text-[11px] text-ink-mute">Article seul · hors livraison</p>
+        {!f.dropped && <p className="text-[11px] text-ink-mute">{d.previousPriceCents === null ? 'Premier relevé · baisse non vérifiée' : d.priceCents === d.previousPriceCents ? 'Prix stable' : 'Prix en hausse'}{d.observedAt && ` · ${new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}`}</p>}
+        {f.dropped && d.observedAt && <p className="text-[11px] text-ink-mute">Relevé le {new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</p>}
+
         {d.matches && d.matches.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {d.matches.slice(0, 2).map((m) => (
-              <span key={m.id} className="max-w-full truncate rounded-full bg-tag-soft px-2 py-0.5 text-[11px] font-medium text-ink" title={m.name}>
+            {d.matches.slice(0, 1).map((m) => (
+            <span key={m.id} className="max-w-full truncate rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700" title={m.name}>
                 {m.name}
               </span>
             ))}
-            {d.matches.length > 2 && <span className="text-[11px] text-ink-mute">+{d.matches.length - 2}</span>}
+            {d.matches.length > 1 && <span className="text-[11px] text-ink-mute">+{d.matches.length - 1}</span>}
           </div>
         )}
 
@@ -130,17 +143,10 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
             <input type="checkbox" name="ids" value={d.offerId} form={compareForm} className="h-3.5 w-3.5 rounded border-paper-line accent-ink" /> Comparer
           </label>
         )}
-        <a
-          href={d.url}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="mt-2 inline-flex items-center justify-center gap-1 rounded-full border border-paper-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-ink hover:bg-ink hover:text-white"
-        >
-          Voir l'offre <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-        </a>
+        <RetailerLink url={d.url} className="inline-flex items-center justify-center gap-1 rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700" />
       </div>
     </article>
   );
 }
 
-export const dealGrid = "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";
+export const dealGrid = "deal-grid grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";

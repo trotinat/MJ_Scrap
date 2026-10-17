@@ -72,6 +72,9 @@ const optionalMad = z
 export const criterionFiltersSchema = z
   .object({
     categoryPaths: z.array(sitePathSchema).max(10).default([]),
+    productType: z.enum(['any', 'shoes', 'pants', 'tops']).default('any'),
+    sizes: stringList(12, 10),
+    genders: stringList(5, 20),
     keywords: stringList(),
     altKeywords: stringList(),
     modelRef: z

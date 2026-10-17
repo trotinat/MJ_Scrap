@@ -2,6 +2,8 @@ import {
   createDb,
   getBotUpdateOffset,
   getNotificationSettings,
+  getAppSettings,
+  applicationSettings,
   getSubscriber,
   listActiveSubscribers,
   listUserCriteria,
@@ -11,7 +13,8 @@ import {
   touchSubscriber,
   type Db,
 } from "@mdw/database";
-import { deliverToSubscribers, escapeHtml, formatTestMessage, TelegramBot, type TelegramMessage } from "@mdw/notifications";
+import { deliverToSubscribers, escapeHtml, formatTestMessage, TelegramBot, TelegramError, type TelegramMessage } from "@mdw/notifications";
+import { configureProxyFromEnv } from '@mdw/scraper';
 import { formatMad, frNumber, type Criterion } from "@mdw/shared";
 import { loadConfig } from "./config";
 import { createLogger, type Logger } from "./logger";
@@ -153,35 +156,46 @@ async function handleCommand(db: Db, bot: TelegramBot, msg: TelegramMessage, log
 
 async function main() {
   const config = loadConfig();
+  configureProxyFromEnv();
   const logger = createLogger(config.LOG_LEVEL);
   if (!config.TELEGRAM_BOT_TOKEN) {
     logger.error("TELEGRAM_BOT_TOKEN absent : le bot ne peut pas démarrer");
     process.exit(1);
   }
   const { db, close } = createDb(config.DATABASE_URL, 4);
+  const health = async (state: string, username?: string) => {
+    await db.insert(applicationSettings).values({key:'telegram_health', value:{state, username, at:new Date().toISOString()}})
+      .onConflictDoUpdate({target:applicationSettings.key, set:{value:{state, username, at:new Date().toISOString()}}});
+  };
   const bot = new TelegramBot({ botToken: config.TELEGRAM_BOT_TOKEN });
 
   let me;
-  try {
+  for (let attempt = 0; ; attempt++) { try {
+    await health('connecting');
     me = await bot.getMe();
     await bot.setMyCommands(BOT_COMMANDS);
+    break;
   } catch (err) {
-    logger.error({ err: (err as Error).message }, "impossible de joindre l'API Telegram (jeton invalide ?)");
-    await close();
-    process.exit(1);
-  }
+    if (err instanceof TelegramError && err.permanent) { await close(); throw err; }
+    const delay = Math.min(60_000, 2000 * 2 ** Math.min(attempt, 5));
+    logger.warn({ err: (err as Error).message, retryInMs: delay }, 'Telegram indisponible : nouvelle tentative automatique');
+    await new Promise(r => setTimeout(r, delay));
+  }}
   logger.info({ bot: me.username }, "bot Telegram prêt");
+  await health('ready', me.username);
 
   let stopped = false;
+  let connected = true;
 
   // Delivery loop: fan queued alerts out to active subscribers.
   const deliver = async () => {
     if (stopped) return;
     try {
+      await health(connected ? 'ready' : 'connecting', me.username);
       const subs = await listActiveSubscribers(db);
       if (subs.length === 0) return;
       const ns = await getNotificationSettings(db);
-      if (!ns.enabled) return;
+      if (!ns.enabled || !(await getAppSettings(db)).notificationsEnabled) return;
       const r = await deliverToSubscribers(db, subs, {
         botToken: config.TELEGRAM_BOT_TOKEN!,
         limit: ns.maxPerRun,
@@ -203,6 +217,8 @@ async function main() {
     while (!stopped) {
       try {
         const updates = await bot.getUpdates(offset, 50);
+        connected = true;
+        await health('ready', me.username);
         for (const u of updates) {
           offset = u.update_id + 1;
           const msg = u.message;
@@ -217,6 +233,8 @@ async function main() {
         if (updates.length) await setBotUpdateOffset(db, offset);
       } catch (err) {
         if (stopped) break;
+        connected = false;
+        await health('connecting', me.username).catch(() => undefined);
         logger.warn({ err: (err as Error).message }, "getUpdates en échec, nouvelle tentative dans 5 s");
         await new Promise((r) => setTimeout(r, 5_000));
       }

@@ -8,6 +8,7 @@ import {
   normalizeRef,
   normalizeText,
   phraseMatches,
+  fashionFailures,
   roundTo,
   type AppSettings,
   type Criterion,
@@ -75,6 +76,8 @@ export function evaluate(
   const fullText = `${titleText} ${Object.entries(p.rawSpecs)
     .map(([k, v]) => `${k} ${v}`)
     .join(" ")}`;
+  failed.push(...fashionFailures(f, p));
+  if (p.stock === 'out_of_stock') failed.push('produit en rupture de stock');
 
   /* ---------------------------- mandatory filters --------------------------- */
   const allKeywords = [...f.keywords, ...f.altKeywords];
@@ -257,7 +260,7 @@ export function evaluate(
   {
     const applicable = p.seller !== null;
     let value = 0.5;
-    const isMarjane = p.seller !== null && /^marjane/i.test(p.seller.trim());
+    const isMarjane = p.seller !== null && ["marjane", "marjanemall", "marjane mall"].includes(normalizeText(p.seller));
     if (p.seller && f.preferredSellers.some((s) => normalizeText(s) === normalizeText(p.seller))) value = 1;
     else if (isMarjane) value = 1;
     else if (f.preferredSellers.length > 0) value = 0.3;
@@ -283,7 +286,13 @@ export function evaluate(
 
   const applicable = components.filter((c) => c.applicable && c.weight > 0);
   const totalWeight = applicable.reduce((s, c) => s + c.weight, 0);
-  const score = totalWeight > 0 ? Math.round((100 * applicable.reduce((s, c) => s + c.weight * c.value, 0)) / totalWeight) : 0;
+  const rawScore = totalWeight > 0 ? Math.round((100 * applicable.reduce((s, c) => s + c.weight * c.value, 0)) / totalWeight) : 0;
+  // A seller's crossed-out price alone cannot prove an exceptional deal.
+  const beatsBaseline = history.typical30DayCents != null
+    ? price <= history.typical30DayCents*0.95
+    : history.observationCount < 3 || (history.previousMinPriceCents !== null && price < history.previousMinPriceCents);
+  const hasPriceEvidence = targetReached || (changeVsPreviousPct !== null && changeVsPreviousPct < 0 && beatsBaseline);
+  const score = hasPriceEvidence ? rawScore : Math.min(rawScore, settings.thresholds.veryGood - 1);
   const isMatch = failed.length === 0;
   const dealClass = classifyScore(score, settings.thresholds);
 

@@ -53,9 +53,11 @@ export interface SavedObservation {
  */
 export async function saveObservation(tx: Tx, o: OfferObservation, runId: string, now: Date): Promise<SavedObservation> {
   const specs = extractSpecs(o.title, o.rawSpecs);
-  const key = canonicalProductKey(o.brand, o.modelRef, o.sourceId, specs);
+  let key = canonicalProductKey(o.brand, o.modelRef, o.sourceId, specs);
 
   const [existingOffer] = await tx.select().from(productOffers).where(eq(productOffers.sourceId, o.sourceId)).limit(1).for("update");
+  const [existingProduct] = existingOffer ? await tx.select().from(products).where(eq(products.id, existingOffer.productId)).limit(1) : [];
+  if (existingProduct && (o.source === 'listing' || key.startsWith('src:'))) key = existingProduct.canonicalKey;
 
   // Product upsert. A listing-only observation (no specs) never overwrites richer data.
   const productValues = {
@@ -76,8 +78,8 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
   if (o.modelRef) updateSet.modelRef = o.modelRef;
   if (o.categoryPath) updateSet.categoryPath = o.categoryPath;
   if (o.source === "detail") {
-    updateSet.specs = specs;
-    updateSet.rawSpecs = o.rawSpecs;
+    updateSet.specs = { ...existingProduct?.specs, ...specs };
+    updateSet.rawSpecs = { ...existingProduct?.rawSpecs, ...o.rawSpecs };
   }
   const [product] = await tx
     .insert(products)
@@ -167,19 +169,18 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     })
     .returning({ id: priceHistory.id });
 
-  const history = await tx
-    .select({ priceCents: priceHistory.priceCents, observedAt: priceHistory.observedAt })
-    .from(priceHistory)
-    .where(eq(priceHistory.offerId, offerId))
-    .orderBy(asc(priceHistory.observedAt), asc(priceHistory.id));
+  const [history] = (await tx.execute<{n:number; minimum:number; previous_min:number|null; first:Date; previous:number|null}>(sql`
+    select count(*)::int as n, min(price_cents)::int as minimum,
+      min(price_cents) filter (where id <> ${obs!.id})::int as previous_min,
+      min(observed_at) as first,
+      (select price_cents from price_history where offer_id = ${offerId} and id <> ${obs!.id}
+        order by observed_at desc, id desc limit 1) as previous
+    from price_history where offer_id = ${offerId}`)).rows;
 
   const seenOn = [...new Set([...(o.listingPaths ?? []), ...(o.listingPath ? [o.listingPath] : [])])];
-  for (const listingPath of seenOn) {
-    await tx
-      .insert(listingAppearances)
-      .values({ offerId, listingPath, firstSeenAt: now, lastSeenAt: now })
-      .onConflictDoUpdate({ target: [listingAppearances.offerId, listingAppearances.listingPath], set: { lastSeenAt: now } });
-  }
+  if(seenOn.length) await tx.insert(listingAppearances)
+    .values(seenOn.map(listingPath=>({offerId,listingPath,firstSeenAt:now,lastSeenAt:now})))
+    .onConflictDoUpdate({target:[listingAppearances.offerId,listingAppearances.listingPath],set:{lastSeenAt:now}});
 
   const stockForMatch: StockStatus = o.stock !== "unknown" ? o.stock : (previous.stock ?? "unknown");
   const matchable: MatchableProduct = {
@@ -195,8 +196,8 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     stock: stockForMatch,
     rating: o.rating,
     reviewCount: o.reviewCount,
-    rawSpecs: o.source === "detail" ? o.rawSpecs : (product!.rawSpecs ?? {}),
-    specs: o.source === "detail" ? specs : { ...(product!.specs ?? {}), ...specs },
+    rawSpecs: product!.rawSpecs ?? {},
+    specs: { ...(product!.specs ?? {}), ...specs },
   };
 
   return {
@@ -207,7 +208,7 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     observationId: obs!.id,
     observedAt: now,
     matchable,
-    facts: historyFacts(history),
+    facts: {observationCount:history!.n, previousPriceCents:history!.previous, minPriceCents:history!.minimum, previousMinPriceCents:history!.previous_min, firstSeenAt:new Date(history!.first)},
   };
 }
 

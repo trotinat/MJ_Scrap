@@ -24,9 +24,9 @@ export function QuickAddFromUrl({ hasProfile = false }: { hasProfile?: boolean }
     <div className="overflow-hidden rounded-2xl border border-paper-line bg-paper-card card-soft">
       <div className="border-b border-paper-line bg-gradient-to-br from-tag-soft to-paper-card px-5 py-4">
         <div className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
-          <Search className="h-5 w-5 text-tag-deep" aria-hidden /> Créer une recherche
+          <Search className="h-5 w-5 text-tag-deep" aria-hidden /> Création rapide
         </div>
-        <p className="mt-0.5 text-sm text-ink-soft">Dites ce que vous cherchez et choisissez les rayons à surveiller. On vous alerte dès qu&apos;un bon prix apparaît.</p>
+        <p className="mt-0.5 text-sm text-ink-soft">Pour lancer sans aperçu. Si vous voulez vérifier les produits d’abord, utilisez la nouvelle recherche guidée.</p>
       </div>
 
       <form action={catsAction} className="px-5 py-4">
@@ -78,8 +78,8 @@ export function QuickAddFromUrl({ hasProfile = false }: { hasProfile?: boolean }
       </details>
 
       <div className="flex flex-wrap items-center gap-1.5 border-t border-paper-line px-5 py-2.5 text-xs text-ink-mute">
-        <Sliders className="h-3.5 w-3.5" aria-hidden /> Besoin de prix cibles, marques ou specs précises ?
-        <Link href="/criteres/nouveau" className="font-medium text-ink-soft underline hover:text-ink">Recherche avancée</Link>
+        <Sliders className="h-3.5 w-3.5" aria-hidden /> Vérifier avant d’activer ?
+        <Link href="/criteres/nouveau" className="font-medium text-ink-soft underline hover:text-ink">Tester une recherche guidée</Link>
       </div>
     </div>
   );

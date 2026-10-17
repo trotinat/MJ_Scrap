@@ -1,16 +1,18 @@
 # Marjane Deals Watcher
 
+Mise à jour précision et interface : [notes du 16 octobre 2026](docs/ACCURACY-UPDATE.md).
+Les correspondances personnelles exigent des attributs vérifiables ; les promotions générales restent une sélection à explorer.
+
 Surveillance autonome des promotions de [Marjane Mall](https://www.marjanemall.ma/) :
 collecte deux fois par jour (09:00 et 18:00, heure du Maroc), historique des
 prix, correspondance avec vos critères de recherche, classement des offres et
 alertes Telegram. Interface en français, montants en dirhams (MAD).
 
-> **État de validation** — tout le code est testé (112 tests unitaires et
-> d'intégration sur PostgreSQL, parcours de bout en bout de l'interface).
-> L'extraction **en direct** sur marjanemall.ma n'a pas pu être vérifiée depuis
-> l'environnement de développement (accès réseau refusé) : lancez
-> `node dist/cli.js probe` sur le serveur avant de vous y fier
-> (voir [docs/DISCOVERY.md](docs/DISCOVERY.md)).
+> **État de validation** — tests unitaires et d'intégration PostgreSQL, compilation
+> optimisée et inspection navigateur sur téléphone et ordinateur. La collecte
+> en direct a été exercée le 16 octobre 2026 : certaines pages restent partiellement
+> lisibles. La couverture limitée est signalée et ne prouve jamais qu'une offre
+> a disparu. Utilisez `probe` pour vérifier les pages depuis votre serveur.
 
 ## Ventes flash et critères recommandés
 

@@ -1,4 +1,6 @@
 import type { ShopperProfile } from "./profile";
+import { fitsPromotionProfile } from './promotion-profile';
+import { phraseMatches } from './text';
 
 /**
  * Marjane's product images follow a `…_imgN.webp` pattern (img1, img2, img3…).
@@ -11,8 +13,11 @@ export function deriveGallery(imageUrl: string | null, max = 4): string[] {
   const m = /^(.*_img)(\d+)(\.[a-z]+)(\?.*)?$/i.exec(imageUrl);
   if (!m) return [imageUrl];
   const [, base, , ext, query = ""] = m;
-  const out: string[] = [];
-  for (let i = 1; i <= max; i++) out.push(`${base}${i}${ext}${query}`);
+  const out: string[] = [imageUrl];
+  for (let i = 1; out.length < max && i <= max; i++) {
+    const candidate = `${base}${i}${ext}${query}`;
+    if (!out.includes(candidate)) out.push(candidate);
+  }
   return out;
 }
 
@@ -22,6 +27,8 @@ export interface HighlightInput {
   seller?: string | null;
   priceCents: number | null;
   discountPct: number | null;
+  rawSpecs?: Record<string,string>;
+  categoryPath?: string | null;
 }
 
 export interface Highlight {
@@ -37,6 +44,7 @@ const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,
  * badge cards so the right deals stand out at a glance.
  */
 export function profileHighlights(item: HighlightInput, p: ShopperProfile): Highlight[] {
+  if (!fitsPromotionProfile(item,p)) return [];
   const out: Highlight[] = [];
   const title = norm(item.title);
   const brand = item.brand ? norm(item.brand) : "";
@@ -50,7 +58,7 @@ export function profileHighlights(item: HighlightInput, p: ShopperProfile): High
   if (p.maxPrice != null && item.priceCents != null && item.priceCents <= p.maxPrice * 100) {
     out.push({ label: "Dans votre budget", tone: "profile" });
   }
-  const gender = p.genders.find((g) => title.includes(norm(g)));
+  const gender = p.genders.find((g) => phraseMatches(item.title,g));
   if (gender) out.push({ label: gender, tone: "profile" });
 
   if (item.discountPct != null && (p.minDiscountPct == null || item.discountPct >= p.minDiscountPct) && item.discountPct >= 40) {
@@ -61,5 +69,5 @@ export function profileHighlights(item: HighlightInput, p: ShopperProfile): High
 
 /** True when an offer matches at least one explicit profile preference (brand/seller/budget/gender). */
 export function suitsProfile(item: HighlightInput, p: ShopperProfile): boolean {
-  return profileHighlights(item, p).some((h) => h.tone === "profile");
+  return profileHighlights(item, p).some((h) => h.tone === "profile" && h.label !== 'Dans votre budget');
 }

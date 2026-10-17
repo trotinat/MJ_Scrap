@@ -191,6 +191,9 @@ export interface RunStats {
   listingPagesFetched?: number;
   cardsSeen?: number;
   detailFetches?: number;
+  detailCacheHits?: number;
+  promoPagesSkipped?: number;
+  offersProcessed?: number;
   detailFailures?: number;
   newOffers?: number;
   priceDrops?: number;
@@ -281,6 +284,8 @@ export type NotificationStatus = "pending" | "sending" | "sent" | "failed" | "de
 export interface NotificationPayload {
   html: string;
   imageUrl: string | null;
+  /** Durable recipient receipts: retrying another chat must not resend to successful recipients. */
+  deliveredChatIds?: string[];
 }
 
 export const notifications = pgTable("notifications", {

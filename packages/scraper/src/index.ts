@@ -9,3 +9,5 @@ export { extractFlightData, parseEmbeddedProducts } from "./parse/embedded";
 export { parseProductPage, ProductParseError } from "./parse/product";
 export { parsePriceLines, moneyCandidates, findDiscount } from "./parse/price";
 export { findSeller, findStock, findReviewCount, findRating } from "./parse/fields";
+
+export { parseCampaignLinks } from './parse/campaigns';

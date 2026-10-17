@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAppSettings, getDb, saveAppSettings } from "@mdw/database";
+import { getAppSettings, getDb, saveAppSettings, runRequests } from "@mdw/database";
+import { eq } from 'drizzle-orm';
 import { shopperProfileSchema } from "@mdw/shared";
 import { requireUser } from "@/lib/session";
 
@@ -12,7 +13,7 @@ export interface ProfileState {
 
 /** Saves the shopper profile into app settings. Other settings are preserved. */
 export async function saveProfileAction(_prev: ProfileState, fd: FormData): Promise<ProfileState> {
-  await requireUser();
+  const user = await requireUser();
   let raw: unknown;
   try {
     raw = JSON.parse(String(fd.get("payload") ?? "{}"));
@@ -24,6 +25,8 @@ export async function saveProfileAction(_prev: ProfileState, fd: FormData): Prom
   const db = getDb();
   const current = await getAppSettings(db);
   await saveAppSettings(db, { ...current, shopperProfile: parsed.data });
+  const pending = await db.select({id:runRequests.id}).from(runRequests).where(eq(runRequests.status,'pending')).limit(1);
+  if (!pending.length) await db.insert(runRequests).values({requestedBy:user.email});
   revalidatePath("/", "layout");
-  return { ok: true, message: "Profil enregistré. Il s'applique à vos prochaines recherches." };
+  return { ok: true, message: "Profil enregistré. Une vérification de vos recherches est demandée avec vos nouvelles préférences." };
 }

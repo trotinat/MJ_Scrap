@@ -34,7 +34,7 @@ describeDb("database without UTF-8 (Windows code page)", () => {
   });
 
   it("records each failure and always closes the run", async () => {
-    await saveAppSettings(h.db, { ...DEFAULT_SETTINGS, dealPagePaths: ["/ventes-flash"] });
+    await saveAppSettings(h.db, { ...DEFAULT_SETTINGS, maxDetailFetchesPerRun: 0, dealPagePaths: ["/ventes-flash"] });
     await createCriterion(h.db, RECOMMENDED_CRITERIA[1]!); // Ventes flash -40 %
     const card = (sourceId: string, title: string, price: number, old: number) => ({
       sourceId, url: `https://www.marjanemall.ma/p/x-${sourceId}`, title, imageUrl: null, priceCents: price, originalPriceCents: old,
@@ -60,8 +60,9 @@ describeDb("database without UTF-8 (Windows code page)", () => {
     expect(run!.status).toBe("partial");
     expect(run!.finishedAt).not.toBeNull();
     // Each failure is recorded as a readable one-line error (no endless "running" state).
-    expect(run!.errorSummary).toMatch(/^2 erreur\(s\) : store: Failed query: insert into "products"/);
+    expect(run!.errorSummary).toMatch(/^1 erreur\(s\) : store: Failed query: insert into "products"/);
     // Such a database cannot even store the alerts (emojis): the launcher converts it to UTF-8.
-    expect(await h.db.select().from(productOffers)).toEqual([]);
+    // An advertised discount alone no longer earns an alert-level score, so the valid ASCII product survives.
+    expect((await h.db.select().from(productOffers)).map(o => o.sourceId)).toEqual(['aaaxx12345']);
   });
 });

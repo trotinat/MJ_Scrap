@@ -39,12 +39,18 @@ function parsePayload(formData: FormData): { ok: true; data: z.infer<typeof crit
 }
 
 export async function createCriterionAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const p = parsePayload(formData);
   if (!p.ok) return p.state;
-  const c = await createCriterion(getDb(), p.data);
+  const db = getDb();
+  const c = await createCriterion(db, p.data);
+  if (p.data.enabled) {
+    const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
+    if (!pending.length) await db.insert(runRequests).values({ requestedBy: user.email });
+  }
   revalidatePath("/criteres");
-  redirect(`/criteres/${c.id}`);
+  revalidatePath("/collectes");
+  redirect(`/criteres/${c.id}?ajout=1`);
 }
 
 export async function updateCriterionAction(id: string, _prev: FormState, formData: FormData): Promise<FormState> {

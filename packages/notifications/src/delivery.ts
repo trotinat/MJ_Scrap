@@ -1,6 +1,9 @@
 import { and, eq, inArray, lte, or } from "drizzle-orm";
 import {
   listUserCriterionIds,
+  dealMatches,
+  getAppSettings,
+  getNotificationSettings,
   notificationAttempts,
   notifications,
   setSubscriberStatus,
@@ -52,6 +55,7 @@ export async function deliverToSubscribers(db: Db, subscribers: Subscriber[], op
   const limit = opts.limit ?? 20;
   const maxAttempts = opts.maxAttempts ?? 8;
   const result: DeliverResult = { sent: 0, failed: 0, dead: 0, filtered: 0 };
+  if (!(await getAppSettings(db)).notificationsEnabled || !(await getNotificationSettings(db)).enabled) return result;
 
   const active = subscribers.filter((s) => s.status === "active");
   if (active.length === 0) return result;
@@ -92,9 +96,10 @@ export async function deliverToSubscribers(db: Db, subscribers: Subscriber[], op
   const blocked = new Set<string>();
 
   for (const n of claimed) {
+    const [match] = n.criterionId && n.offerId ? await db.select({isMatch:dealMatches.isMatch}).from(dealMatches).where(and(eq(dealMatches.criterionId,n.criterionId),eq(dealMatches.offerId,n.offerId))).limit(1) : [];
     // Safety net: never deliver anything outside the user's own searches.
     const deliverable =
-      n.eventType === "test" || (DELIVERABLE_EVENTS.includes(n.eventType) && n.criterionId !== null && userCriterionIds.has(n.criterionId));
+      n.eventType === "test" || (DELIVERABLE_EVENTS.includes(n.eventType) && n.criterionId !== null && userCriterionIds.has(n.criterionId) && match?.isMatch === true);
     if (!deliverable) {
       await db
         .update(notifications)
@@ -109,12 +114,15 @@ export async function deliverToSubscribers(db: Db, subscribers: Subscriber[], op
     let transientError: string | null = null;
     let transientStatus: number | null = null;
     let retryAfterMs: number | null = null;
+    const delivered = new Set(n.payload.deliveredChatIds ?? []);
 
     for (const sub of active) {
-      if (blocked.has(sub.chatId)) continue;
+      if (blocked.has(sub.chatId) || delivered.has(sub.chatId)) continue;
       try {
         const { messageId } = await clientFor(sub.chatId).sendDeal(n.payload.html, n.payload.imageUrl, opts.sendImages ?? true);
         firstMessageId ??= messageId;
+        delivered.add(sub.chatId);
+        await db.update(notifications).set({payload:{...n.payload,deliveredChatIds:[...delivered]}}).where(eq(notifications.id,n.id));
       } catch (err) {
         const te = err instanceof TelegramError ? err : null;
         if (te?.permanent) {

@@ -40,6 +40,8 @@ export const appSettingsSchema = z.object({
       "/les-deals-de-l-automne",
       "/tout-a-moins-de-200-dh",
     ]),
+  detailCacheMinutes: z.number().int().min(0).max(120).default(30),
+  promoRefreshHours: z.number().int().min(0).max(24).default(6),
   maxListingPagesPerPath: z.number().int().min(1).max(20).default(4),
   maxDetailFetchesPerRun: z.number().int().min(0).max(1000).default(40),
   requestDelayMs: z.number().int().min(1000).max(60000).default(3000),

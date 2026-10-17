@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Loader2, Plus, SearchCheck, Trash2 } from "lucide-react";
 import {
   CATEGORY_SUGGESTIONS,
   NOTIFY_MODE_LABELS,
@@ -23,6 +23,9 @@ export interface FormState {
 }
 
 type Draft = Omit<CriterionInput, "filters"> & { filters: CriterionInput["filters"] };
+type PreviewItem = { url: string; title: string; imageUrl: string | null; priceCents: number; originalPriceCents: number | null; advertisedDiscountPct: number | null; seller: string | null; score: number; dealClass: string };
+type PreviewEvent = { type: string; item?: PreviewItem; message?: string; path?: string; checked?: number; found?: number; rejected?: number; errors?: number; count?: number; title?: string; reasons?: string[] };
+type PreviewState = { phase: "idle" | "running" | "done" | "error"; items: PreviewItem[]; rejected: number; examples: { title: string; reasons: string[] }[]; checked: number; found: number; errors: number; message: string; testedPayload: string };
 
 const numOrNull = (s: string): number | null => {
   if (s.trim() === "") return null;
@@ -87,13 +90,67 @@ export function CriterionForm({
   initial,
   action,
   submitLabel,
+  previewBeforeSave = false,
 }: {
   initial: Draft;
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   submitLabel: string;
+  previewBeforeSave?: boolean;
 }) {
   const [d, setD] = useState<Draft>(initial);
   const [state, formAction] = useActionState(action, {});
+  const [preview, setPreview] = useState<PreviewState>({ phase: "idle", items: [], rejected: 0, examples: [], checked: 0, found: 0, errors: 0, message: "", testedPayload: "" });
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const suggestedName = d.filters.keywords[0] || d.filters.altKeywords[0] || d.filters.categoryPaths[0]?.split("?")[0]?.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") || "Ma recherche";
+  const payload = JSON.stringify({ ...d, name: d.name.trim() || (previewBeforeSave ? suggestedName.slice(0, 120) : d.name) });
+  const filterSignature = JSON.stringify(d.filters);
+  const isCurrentPreview = preview.phase === "done" && preview.testedPayload === filterSignature;
+  const hasSearchScope = d.filters.categoryPaths.length > 0 || d.filters.keywords.length > 0 || d.filters.altKeywords.length > 0 || Boolean(d.filters.modelRef);
+  async function testSearch() {
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+    setPreview({ phase: "running", items: [], rejected: 0, examples: [], checked: 0, found: 0, errors: 0, message: "Connexion à Marjane Mall…", testedPayload: filterSignature });
+    try {
+      const response = await fetch("/api/criteres/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, signal: abort.signal });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message ?? "Le test a échoué.");
+      }
+      if (!response.body) throw new Error("Le navigateur ne peut pas afficher les résultats progressifs.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const accept = (line: string) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line) as PreviewEvent;
+        setPreview((p) => {
+          if (event.type === "match" && event.item) return { ...p, items: [...p.items, event.item], found: p.found + 1 };
+          if (event.type === "reject") return { ...p, rejected: p.rejected + 1, examples: event.title && p.examples.length < 3 ? [...p.examples, { title: event.title, reasons: event.reasons ?? [] }] : p.examples };
+          if (event.type === "progress") return { ...p, checked: event.checked ?? p.checked, found: event.found ?? p.found, errors: event.errors ?? p.errors };
+          if (event.type === "path") return { ...p, message: `Exploration de ${event.path}…` };
+          if (event.type === "listing") return { ...p, message: `${event.count ?? 0} produits repérés · vérification des fiches…` };
+          if (event.type === "warning") return { ...p, errors: p.errors + 1, message: event.message ?? "Rayon indisponible." };
+          if (event.type === "error") return { ...p, phase: "error", message: event.message ?? "Le test a échoué." };
+          if (event.type === "done") return { ...p, phase: "done", checked: event.checked ?? p.checked, found: event.found ?? p.found, rejected: event.rejected ?? p.rejected, errors: event.errors ?? p.errors, message: "Test terminé" };
+          return p;
+        });
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) accept(line);
+      }
+      if (buffer.trim()) accept(buffer);
+      setPreview((p) => p.phase === "running" ? { ...p, phase: "error", message: "Le test s’est interrompu. Réessayez." } : p);
+    } catch (error) {
+      if (!abort.signal.aborted) setPreview((p) => ({ ...p, phase: "error", message: error instanceof Error ? error.message : "Le test a échoué." }));
+    }
+  }
   const e = state.errors ?? {};
   const f = d.filters;
   const setF = (patch: Partial<Draft["filters"]>) => setD({ ...d, filters: { ...f, ...patch } });
@@ -104,13 +161,37 @@ export function CriterionForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      <input type="hidden" name="payload" value={JSON.stringify(d)} />
+      <input type="hidden" name="payload" value={payload} />
       {state.message && <div className="rounded-lg border border-promo/30 bg-promo-soft px-4 py-3 text-sm text-promo">{state.message}</div>}
 
+      {previewBeforeSave && <Card title="1. Que cherchez-vous ?">
+        <div className="space-y-4">
+          <Field label="Produit ou mots-clés" hint="Validez avec Entrée ou une virgule. Plusieurs mots sont des alternatives.">
+            <TagInput value={f.keywords} onChange={(v) => setF({ keywords: v })} placeholder="Ex. casquette, sneakers, TV 4K" ariaLabel="Produit ou mots-clés" />
+          </Field>
+          <div>
+            <p className="mb-1 text-sm font-medium text-ink">Rayons à surveiller</p>
+            <p className="mb-2 text-xs text-ink-mute">Facultatif. Sans rayon, nous cherchons dans les promotions.</p>
+            <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Prix maximum (MAD)" htmlFor="quick-max-price"><input id="quick-max-price" className={input} inputMode="decimal" {...money("maxPrice")} /></Field>
+            <Field label="Pour qui ?" htmlFor="quick-gender" hint="Selon mon profil évite les offres mode non pertinentes.">
+              <select id="quick-gender" className={input} value={f.genders[0] ?? ""} onChange={ev => setF({ genders: ev.target.value ? [ev.target.value] : [] })}>
+                <option value="">Selon mon profil</option><option>Homme</option><option>Femme</option><option>Mixte</option><option>Garçon</option><option>Fille</option>
+              </select>
+            </Field>
+          </div>
+        </div>
+      </Card>}
+
+      <details open={!previewBeforeSave} className={previewBeforeSave ? "rounded-[1.35rem] border border-paper-line bg-paper-card p-4 sm:p-5" : "space-y-5"}>
+        <summary className={previewBeforeSave ? "cursor-pointer text-sm font-semibold text-ink" : "sr-only"}>Plus de filtres et options <span className="font-normal text-ink-mute">· nom, tailles, marques, alertes</span></summary>
+        <div className="mt-5 space-y-5">
       <Card title="Identification">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Nom de la recherche" error={e.name} htmlFor="name">
-            <input id="name" className={input} value={d.name} onChange={(ev) => setD({ ...d, name: ev.target.value })} required maxLength={120} />
+            <input id="name" className={input} value={d.name} onChange={(ev) => setD({ ...d, name: ev.target.value })} required={!previewBeforeSave} placeholder={previewBeforeSave ? suggestedName : undefined} maxLength={120} />
           </Field>
           <Field label="Statut">
             <label className="mt-2 inline-flex items-center gap-2 text-sm text-ink-soft">
@@ -130,7 +211,7 @@ export function CriterionForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <p className="mb-1 block text-sm font-medium text-ink">Rayons à surveiller</p>
-            <p className="mb-2 text-xs text-ink-mute">Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche n&apos;a rien à parcourir.</p>
+            <p className="mb-2 text-xs text-ink-mute">Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche parcourt les pages promos configurées.</p>
             <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
             {e["filters.categoryPaths"] && <p className="mt-1 text-xs text-promo">{e["filters.categoryPaths"]}</p>}
             <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
@@ -160,6 +241,25 @@ export function CriterionForm({
             <select className={input} value={f.condition} onChange={(ev) => setF({ condition: ev.target.value as "any" | "new_only" })}>
               <option value="any">Indifférent</option>
               <option value="new_only">Neuf uniquement (exclut reconditionné / occasion)</option>
+            </select>
+          </Field>
+        </div>
+      </Card>
+
+      <Card title="Correspondance précise">
+        <p className="mb-4 text-sm text-ink-mute">Un attribut obligatoire absent de la fiche exclut le produit. Les tailles du profil s’appliquent aux recherches mode si vous laissez ces champs vides.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Type de produit">
+            <select aria-label="Type de produit" className={input} value={f.productType} onChange={ev => setF({productType: ev.target.value as typeof f.productType})}>
+              <option value="any">Automatique selon le rayon</option><option value="shoes">Chaussures</option><option value="pants">Pantalons & jeans</option><option value="tops">Hauts & vestes</option>
+            </select>
+          </Field>
+          <Field label="Tailles ou pointures obligatoires" hint="Une taille parmi celles indiquées doit être confirmée.">
+            <TagInput value={f.sizes} onChange={v => setF({sizes:v})} placeholder="42 ou M ou 32, 33" ariaLabel="Tailles obligatoires" />
+          </Field>
+          <Field label="Genre obligatoire" hint="Le profil fournit la valeur par défaut pour la mode.">
+            <select aria-label="Genre obligatoire" className={input} value={f.genders[0] ?? ''} onChange={ev => setF({genders:ev.target.value ? [ev.target.value] : []})}>
+              <option value="">Selon mon profil</option><option>Homme</option><option>Femme</option><option>Mixte</option><option>Garçon</option><option>Fille</option>
             </select>
           </Field>
         </div>
@@ -248,9 +348,42 @@ export function CriterionForm({
           </Field>
         </div>
       </Card>
+        </div>
+      </details>
 
-      <div className="flex justify-end gap-2">
-        <SubmitButton pendingLabel="Enregistrement…">{submitLabel}</SubmitButton>
+      {previewBeforeSave && <section className="rounded-[1.35rem] border border-paper-line bg-paper-card p-5" aria-label="Test de la recherche">
+        <h2 className="font-display text-lg font-bold text-ink">2. Vérifier les résultats</h2>
+        <p className="mt-1 text-sm text-ink-mute">Les correspondances apparaissent à mesure que leurs fiches sont vérifiées. Aperçu limité aux 2 premiers rayons et à 16 fiches, sans historique de prix.</p>
+        {!hasSearchScope && <p className="mt-3 text-sm text-promo">Ajoutez un produit ou choisissez un rayon pour commencer.</p>}
+        <button type="button" onClick={testSearch} disabled={preview.phase === "running" || !hasSearchScope} className={`${btn.secondary} mt-4 min-h-11 w-full sm:w-auto`}>
+          {preview.phase === "running" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <SearchCheck className="h-4 w-4" aria-hidden />}
+          {preview.phase === "running" ? "Test en cours…" : preview.phase === "idle" ? "Tester la recherche" : "Relancer le test"}
+        </button>
+        <div role="status" aria-live="polite" className="mt-3 text-sm text-ink-soft">
+          {preview.phase !== "idle" && <p>{preview.message} · {preview.checked} fiche{preview.checked > 1 ? "s" : ""} vérifiée{preview.checked > 1 ? "s" : ""} · {preview.found} résultat{preview.found > 1 ? "s" : ""}</p>}
+          {preview.rejected > 0 && <p className="mt-1">{preview.rejected} produit{preview.rejected > 1 ? "s" : ""} écarté{preview.rejected > 1 ? "s" : ""} par vos filtres.</p>}
+          {preview.errors > 0 && <p className="mt-1 text-promo">{preview.errors} fiche{preview.errors > 1 ? "s" : ""} ou rayon{preview.errors > 1 ? "s" : ""} non vérifié{preview.errors > 1 ? "s" : ""} : aperçu incomplet.</p>}
+          {preview.phase === "done" && preview.found === 0 && <p className="mt-1">Aucun résultat dans cet échantillon. Vous pouvez ajuster les critères et relancer.</p>}
+          {preview.testedPayload !== filterSignature && preview.phase !== "idle" && <p className="mt-1 text-promo">Les filtres ont changé depuis le test. Relancez-le pour valider.</p>}
+        </div>
+        {preview.items.length > 0 && <ul className="mt-4 space-y-2" aria-label="Produits correspondants">
+          {preview.items.map((item) => <li key={item.url} className="flex gap-3 rounded-xl border border-paper-line p-3">
+            {item.imageUrl && <img src={item.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-lg bg-paper object-contain" loading="lazy" />}
+            <div className="min-w-0 flex-1">
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="line-clamp-2 text-sm font-semibold text-ink underline-offset-2 hover:underline">{item.title}</a>
+              <p className="num mt-1 font-bold text-ink">{(item.priceCents / 100).toLocaleString("fr-MA")} MAD <span className="ml-1 text-xs font-normal text-ink-mute">{item.advertisedDiscountPct !== null ? `−${item.advertisedDiscountPct} % annoncé` : "remise non indiquée"}</span></p>
+              <p className="text-xs text-ink-mute">Fiche vérifiée · score {item.score}/100 sans historique{item.seller ? ` · ${item.seller}` : ""}</p>
+            </div>
+          </li>)}
+        </ul>}
+        {preview.examples.length > 0 && <details className="mt-4 rounded-xl border border-paper-line px-3 py-2 text-sm text-ink-soft">
+          <summary className="cursor-pointer font-medium">Pourquoi certains produits sont écartés ?</summary>
+          <ul className="mt-2 space-y-2">{preview.examples.map((example, i) => <li key={i}><span className="font-medium text-ink">{example.title}</span><span className="block text-xs">{example.reasons.join(" · ")}</span></li>)}</ul>
+        </details>}
+      </section>}
+      <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] sm:items-end">
+        {previewBeforeSave && <p className="text-xs text-ink-mute">3. La collecte complète démarre après validation.</p>}
+        <SubmitButton pendingLabel="Enregistrement…" disabled={previewBeforeSave && !isCurrentPreview}>{previewBeforeSave ? "Valider et créer la recherche" : submitLabel}</SubmitButton>
       </div>
     </form>
   );
