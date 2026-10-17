@@ -16,9 +16,9 @@ Sur `trotinat/MJ_Scrap`, intégrer les changements locaux existants dans une PR 
 
 ## 3. Développer les collecteurs en parallèle (Saad et Houssam)
 
-Chaque contributeur part de `main`, crée `feat/<boutique>-connector`, lit `HAWTA_CONTEXT.md` et `CONNECTOR_CONTRACT.md`, puis ne touche qu'à son module et ses fixtures sauf accord dans la PR. Exemple Saad : vérifier d'abord si `nike.com/ma` propose des articles commandables au Maroc avec prix exploitables ; implémenter listes, fiches, variantes, promotions et stock ; documenter les pages bloquées ou incomplètes. Une autre boutique suit le même contrat, sans modifier la logique commune.
+Chaque contributeur choisit une boutique, part de la branche de base convenue, crée `feat/<boutique>-connector`, lit `HAWTA_CONTEXT.md` et `CONNECTOR_CONTRACT.md`, puis ne touche qu'à son module et ses fixtures sauf accord dans la PR. Il vérifie d'abord que le marché et les données répondent au public ciblé, puis implémente listes, fiches, variantes, promotions et stock lorsque la source les expose. Les pages bloquées ou incomplètes sont documentées ; la logique commune ne change pas sans coordination.
 
-Flux GitHub : `git switch main` → `git pull` → `git switch -c feat/nike-connector` → commits ciblés → `git push -u origin feat/nike-connector` → PR vers `main`. Saad a besoin d'un accès GitHub au dépôt (collaborateur ou fork). La PR contient exemples source→données, limites, vérifications ciblées et impact collecte ; le mainteneur revoit puis fusionne.
+Flux GitHub : `git switch <branche-de-base>` → `git pull` → `git switch -c feat/<boutique>-connector` → commits ciblés → `git push -u origin feat/<boutique>-connector` → PR vers la branche de base. Saad choisit la boutique cible et a besoin d'un accès GitHub au dépôt (collaborateur ou fork). La PR contient exemples source→données, limites, vérifications ciblées et impact collecte ; le mainteneur revoit puis fusionne.
 
 ## 4. Piloter et publier
 

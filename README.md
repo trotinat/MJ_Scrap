@@ -1,6 +1,6 @@
 # Marjane Deals Watcher
 
-Évolution en cours vers **Hawta**, application multi-boutiques pour le Maroc : [contexte à partager avec les IA et contributeurs](HAWTA_CONTEXT.md) · [contrat technique des collecteurs](docs/CONNECTOR_CONTRACT.md) · [plan d'intégration](docs/HAWTA_PLAN.md) · [brief Saad — connecteur Nike Maroc](docs/SAAD_NIKE_CONNECTOR.md). L'application exécutée reste actuellement centrée sur Marjane Mall.
+Évolution en cours vers **Hawta**, application multi-boutiques pour le Maroc : [contexte à partager avec les IA et contributeurs](HAWTA_CONTEXT.md) · [contrat technique des collecteurs](docs/CONNECTOR_CONTRACT.md) · [plan d'intégration](docs/HAWTA_PLAN.md) · [brief Saad — connecteur boutique au choix](docs/SAAD_CONNECTOR_BRIEF.md). L'application exécutée reste actuellement centrée sur Marjane Mall.
 
 Mise à jour précision et interface : [notes du 16 octobre 2026](docs/ACCURACY-UPDATE.md).
 Les correspondances personnelles exigent des attributs vérifiables ; les promotions générales restent une sélection à explorer.
