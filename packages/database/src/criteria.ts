@@ -1,8 +1,8 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { ADIDAS_HOMME_EXCLUSIONS, criterionFiltersSchema, criterionInputSchema, FASHION_CRITERIA, RECOMMENDED_CRITERIA, type Criterion, type CriterionInputRaw } from "@mdw/shared";
 import type { DbOrTx } from "./client";
-import { applicationSettings, searchCriteria } from "./schema";
-import { getAppSettings } from "./settings";
+import { applicationSettings, searchCriteria, users } from "./schema";
+import { requireUserShop } from "./shops";
 
 type Row = typeof searchCriteria.$inferSelect;
 
@@ -11,6 +11,8 @@ export function rowToCriterion(row: Row): Criterion {
   const filters = criterionFiltersSchema.safeParse(row.filters);
   return {
     id: row.id,
+    ownerId: row.userId,
+    shopId: row.shopId,
     name: row.name,
     description: row.description,
     enabled: row.enabled,
@@ -21,29 +23,42 @@ export function rowToCriterion(row: Row): Criterion {
   };
 }
 
-export async function listCriteria(db: DbOrTx, opts: { enabledOnly?: boolean } = {}): Promise<Criterion[]> {
+export async function listCriteria(db: DbOrTx, opts: { enabledOnly?: boolean; userId?: string; shopId?: string } = {}): Promise<Criterion[]> {
   const q = db.select().from(searchCriteria);
-  const rows = opts.enabledOnly
-    ? await q.where(eq(searchCriteria.enabled, true)).orderBy(asc(searchCriteria.createdAt))
-    : await q.orderBy(asc(searchCriteria.createdAt));
+  const conditions = [opts.enabledOnly ? eq(searchCriteria.enabled, true) : undefined, opts.userId ? eq(searchCriteria.userId, opts.userId) : undefined,
+    opts.shopId ? eq(searchCriteria.shopId, opts.shopId) : undefined,
+    opts.enabledOnly ? sql`exists (select 1 from user_shops us join shops s on s.id = us.shop_id where us.user_id = ${searchCriteria.userId} and us.shop_id = ${searchCriteria.shopId} and s.active)` : undefined].filter((v) => v !== undefined);
+  const rows = await q.where(conditions.length ? and(...conditions) : undefined).orderBy(asc(searchCriteria.createdAt));
   return rows.map(rowToCriterion);
 }
 
-export async function getCriterion(db: DbOrTx, id: string): Promise<Criterion | null> {
-  const rows = await db.select().from(searchCriteria).where(eq(searchCriteria.id, id)).limit(1);
+export async function getCriterion(db: DbOrTx, id: string, userId: string): Promise<Criterion | null> {
+  const rows = await db.select().from(searchCriteria).where(and(eq(searchCriteria.id, id), eq(searchCriteria.userId, userId))).limit(1);
   return rows[0] ? rowToCriterion(rows[0]) : null;
+}
+
+/** Legacy single-chat Telegram integration belongs to Houssam until chats are linked to users. */
+export async function primaryUserId(db: DbOrTx): Promise<string> {
+  const [owner] = await db.select({ id: users.id }).from(users)
+    .orderBy(sql`case when lower(${users.email}) = 'houssam@test.com' then 0 else 1 end`, asc(users.createdAt)).limit(1);
+  if (!owner) throw new Error("Créez un compte avant d'ajouter une recherche.");
+  return owner.id;
 }
 
 export async function createCriterion(
   db: DbOrTx,
   input: CriterionInputRaw,
+  userId: string,
   origin: "user" | "recommended" = "user",
 ): Promise<Criterion> {
   const v = criterionInputSchema.parse(input);
+  await requireUserShop(db, userId, v.shopId);
   const [row] = await db
     .insert(searchCriteria)
     .values({
       name: v.name,
+      userId,
+      shopId: v.shopId,
       description: v.description,
       enabled: v.enabled,
       notifyMode: v.notifyMode,
@@ -62,29 +77,33 @@ export async function createCriterion(
  * never notify.
  */
 export async function listUserCriterionIds(db: DbOrTx): Promise<Set<string>> {
+  const ownerId = await primaryUserId(db);
   const rows = await db
     .select({ id: searchCriteria.id })
     .from(searchCriteria)
-    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true)));
+    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true), eq(searchCriteria.userId, ownerId)));
   return new Set(rows.map((r) => r.id));
 }
 
 /** The user's own searches (enabled, origin = "user"), e.g. for the bot's /recherches command. */
 export async function listUserCriteria(db: DbOrTx): Promise<Criterion[]> {
+  const ownerId = await primaryUserId(db);
   const rows = await db
     .select()
     .from(searchCriteria)
-    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true)))
+    .where(and(eq(searchCriteria.origin, "user"), eq(searchCriteria.enabled, true), eq(searchCriteria.userId, ownerId)))
     .orderBy(asc(searchCriteria.createdAt));
   return rows.map(rowToCriterion);
 }
 
-export async function updateCriterion(db: DbOrTx, id: string, input: CriterionInputRaw): Promise<Criterion | null> {
+export async function updateCriterion(db: DbOrTx, id: string, input: CriterionInputRaw, userId: string): Promise<Criterion | null> {
   const v = criterionInputSchema.parse(input);
+  await requireUserShop(db, userId, v.shopId);
   const [row] = await db
     .update(searchCriteria)
     .set({
       name: v.name,
+      shopId: v.shopId,
       description: v.description,
       enabled: v.enabled,
       notifyMode: v.notifyMode,
@@ -93,35 +112,34 @@ export async function updateCriterion(db: DbOrTx, id: string, input: CriterionIn
       filters: v.filters,
       updatedAt: new Date(),
     })
-    .where(eq(searchCriteria.id, id))
+    .where(and(eq(searchCriteria.id, id), eq(searchCriteria.userId, userId)))
     .returning();
   return row ? rowToCriterion(row) : null;
 }
 
-export async function setCriterionEnabled(db: DbOrTx, id: string, enabled: boolean): Promise<void> {
-  await db.update(searchCriteria).set({ enabled, updatedAt: new Date() }).where(eq(searchCriteria.id, id));
+export async function setCriterionEnabled(db: DbOrTx, id: string, enabled: boolean, userId: string): Promise<void> {
+  if (enabled) {
+    const current = await getCriterion(db, id, userId);
+    if (!current) return;
+    await requireUserShop(db, userId, current.shopId);
+  }
+  await db.update(searchCriteria).set({ enabled, updatedAt: new Date() }).where(and(eq(searchCriteria.id, id), eq(searchCriteria.userId, userId)));
 }
 
-export async function duplicateCriterion(db: DbOrTx, id: string): Promise<Criterion | null> {
-  const c = await getCriterion(db, id);
+export async function duplicateCriterion(db: DbOrTx, id: string, userId: string): Promise<Criterion | null> {
+  const c = await getCriterion(db, id, userId);
   if (!c) return null;
-  return createCriterion(db, { ...c, name: `${c.name} (copie)`.slice(0, 120), enabled: false });
+  return createCriterion(db, { ...c, name: `${c.name} (copie)`.slice(0, 120), enabled: false }, userId);
 }
 
 /**
- * Deletes a search AND the data it brought in: offers (with price history)
- * that no remaining search matches and that are not listed on a promo page.
+ * Deletes a user's search and its matches. The underlying offer catalogue and
+ * price history are shared and must remain available to other accounts.
  */
-export async function deleteCriterion(db: DbOrTx, id: string): Promise<{ offersRemoved: number }> {
-  await db.delete(searchCriteria).where(eq(searchCriteria.id, id));
-  const settings = await getAppSettings(db);
-  const promo = settings.dealPagePaths.length > 0 ? sql`and listing_path in (${sql.join(settings.dealPagePaths.map((p) => sql`${p}`), sql`, `)})` : sql`and false`;
-  const res = await db.execute(sql`
-    delete from product_offers o
-    where not exists (select 1 from deal_matches m where m.offer_id = o.id and m.is_match)
-      and not exists (select 1 from listing_appearances a where a.offer_id = o.id ${promo})`);
-  await db.execute(sql`delete from products p where not exists (select 1 from product_offers o where o.product_id = p.id)`);
-  return { offersRemoved: Number((res as { rowCount?: number }).rowCount ?? 0) };
+export async function deleteCriterion(db: DbOrTx, id: string, userId: string): Promise<{ offersRemoved: number }> {
+  await db.delete(searchCriteria).where(and(eq(searchCriteria.id, id), eq(searchCriteria.userId, userId)));
+  // Offers and price history are shared across users; deleting one search must not erase them.
+  return { offersRemoved: 0 };
 }
 
 /**
@@ -129,17 +147,18 @@ export async function deleteCriterion(db: DbOrTx, id: string): Promise<{ offersR
  * With `once`, runs a single time per database (flag in application_settings),
  * so criteria the user deleted are not re-created on every start.
  */
-export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean } = {}): Promise<number> {
+export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean; userId?: string } = {}): Promise<number> {
+  const userId = opts.userId ?? await primaryUserId(db);
   const FLAG = "recommended_criteria_seeded_v1";
   if (opts.once) {
     const done = await db.select({ key: applicationSettings.key }).from(applicationSettings).where(eq(applicationSettings.key, FLAG)).limit(1);
     if (done.length > 0) return 0;
   }
-  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria)).map((r) => r.name.trim().toLowerCase()));
+  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria).where(eq(searchCriteria.userId, userId))).map((r) => r.name.trim().toLowerCase()));
   let added = 0;
   for (const c of RECOMMENDED_CRITERIA) {
     if (existing.has(c.name.trim().toLowerCase())) continue;
-    await createCriterion(db, c, "recommended");
+    await createCriterion(db, c, userId, "recommended");
     added++;
   }
   await db
@@ -156,14 +175,15 @@ export async function seedRecommendedCriteria(db: DbOrTx, opts: { once?: boolean
  * the user later deletes are not re-created.
  */
 export async function seedFashionCriteria(db: DbOrTx): Promise<number> {
+  const userId = await primaryUserId(db);
   const FLAG = "fashion_criteria_v1";
   const done = await db.select({ key: applicationSettings.key }).from(applicationSettings).where(eq(applicationSettings.key, FLAG)).limit(1);
   if (done.length > 0) return 0;
-  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria)).map((r) => r.name.trim().toLowerCase()));
+  const existing = new Set((await db.select({ name: searchCriteria.name }).from(searchCriteria).where(eq(searchCriteria.userId, userId))).map((r) => r.name.trim().toLowerCase()));
   let added = 0;
   for (const c of FASHION_CRITERIA) {
     if (existing.has(c.name.trim().toLowerCase())) continue;
-    await createCriterion(db, c, "recommended");
+    await createCriterion(db, c, userId, "recommended");
     added++;
   }
   await db.insert(applicationSettings).values({ key: FLAG, value: { at: new Date().toISOString(), added } }).onConflictDoNothing();

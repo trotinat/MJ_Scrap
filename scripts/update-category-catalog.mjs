@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { CATEGORY_TREE } from "../packages/shared/src/site.ts";
 import { extractCategoryPaths } from "../packages/shared/src/category-catalog.ts";
@@ -76,5 +76,17 @@ const unique = [...all].filter((path) => /^\/[a-z0-9/-]+$/.test(path)).sort();
 const depth = unique.map((p) => p.split("/").filter(Boolean).length);
 const output = { source, checkedAt: new Date().toISOString(), deep: DEEP, maxDepth: Math.max(...depth), paths: unique };
 const target = fileURLToPath(new URL("../packages/shared/src/category-catalog.generated.json", import.meta.url));
+let previous;
+try {
+  previous = JSON.parse(await readFile(target, "utf8"));
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
+if (previous?.source === source && Array.isArray(previous.paths)) {
+  const missing = previous.paths.filter((path) => !all.has(path));
+  if (missing.length > 0 && !process.argv.includes("--allow-shrink")) {
+    throw new Error(`Category update would remove ${missing.length} existing paths. Run a full --deep crawl or review the removals, then pass --allow-shrink explicitly.`);
+  }
+}
 await writeFile(target, `${JSON.stringify(output, null, 2)}\n`, "utf8");
 console.log(`Saved ${unique.length} category paths (max depth ${output.maxDepth}) from ${source}${DEEP ? " + deep crawl" : ""}`);

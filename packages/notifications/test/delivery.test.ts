@@ -1,6 +1,6 @@
 import {afterAll,afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {eq} from 'drizzle-orm';
-import {createCriterion,dealMatches,notifications,productOffers,products,registerSubscriber,saveAppSettings,telegramSubscribers,type DbHandle} from '@mdw/database';
+import {createCriterion,createUser,dealMatches,notifications,productOffers,products,registerSubscriber,saveAppSettings,telegramSubscribers,type DbHandle} from '@mdw/database';
 import {DEFAULT_SETTINGS} from '@mdw/shared';
 import {deliverToSubscribers} from '../src/delivery';
 import {enqueueNotification} from '../src/outbox';
@@ -13,7 +13,8 @@ describeDb('subscriber delivery accuracy',()=>{
  afterEach(()=>vi.unstubAllGlobals());
  afterAll(async()=>{await h?.close();});
  async function setup(isMatch=true) {
-   const c=await createCriterion(h.db,{name:'Bottle',filters:{keywords:['gourde']}});
+   const user=await createUser(h.db,'owner@example.com','un-mot-de-passe-solide');
+   const c=await createCriterion(h.db,{name:'Bottle',filters:{keywords:['gourde']}},user.id);
    const [p]=await h.db.insert(products).values({canonicalKey:'src:test',name:'Gourde'}).returning();
    const [o]=await h.db.insert(productOffers).values({productId:p!.id,sourceId:'test',url:'https://www.marjanemall.ma/p/gourde-test12345',title:'Gourde',currentPriceCents:1000}).returning();
    await h.db.insert(dealMatches).values({criterionId:c.id,offerId:o!.id,isMatch});

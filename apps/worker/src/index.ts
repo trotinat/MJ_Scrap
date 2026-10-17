@@ -1,8 +1,7 @@
 import { createDb } from "@mdw/database";
 import { loadConfig } from "./config";
 import { createLogger } from "./logger";
-import { lazyDeps, markInterruptedRuns } from "./deps";
-import { runScrape } from "./pipeline";
+import { lazyDeps, markInterruptedRuns, runEnabledShops } from "./deps";
 import { Scheduler } from "./scheduler";
 import { startHealthServer } from "./health";
 
@@ -26,7 +25,7 @@ async function main() {
     outboxIntervalSeconds: config.OUTBOX_INTERVAL_SECONDS,
     version: VERSION,
     makeDeps: () => lazyDeps(db, pool, config, logger),
-    run: runScrape,
+    run: (_deps, trigger, scheduledFor) => runEnabledShops(db, pool, config, logger, trigger, scheduledFor),
   });
   await scheduler.start();
   const server = startHealthServer(config.HEALTH_PORT, db, scheduler);

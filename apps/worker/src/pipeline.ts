@@ -4,10 +4,12 @@ import {
   countActiveSubscribers,
   dealMatches,
   getAppSettings,
+  getUserProfile,
   listingCrawls,
   getNotificationSettings,
   listCriteria,
   listUserCriterionIds,
+  MARJANE_SHOP_ID,
   productOffers,
   scrapingErrors,
   scrapingRuns,
@@ -53,6 +55,7 @@ export async function runScrape(deps: PipelineDeps, trigger: RunTrigger, schedul
     .insert(scrapingRuns)
     .values({
       trigger,
+      shopId: deps.adapter.shopId ?? MARJANE_SHOP_ID,
       status: "skipped",
       scheduledFor,
       finishedAt: new Date(),
@@ -133,6 +136,7 @@ function fromListing(i: ListingItem, categoryPath: string | null): OfferObservat
 
 async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date | null): Promise<RunOutcome> {
   const { db, adapter, logger } = deps;
+  const shopId = adapter.shopId ?? MARJANE_SHOP_ID;
   const now = deps.now ?? (() => new Date());
   const started = now();
   const stats: RunStats = {
@@ -153,7 +157,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
 
   const [run] = await db
     .insert(scrapingRuns)
-    .values({ trigger, status: "running", scheduledFor, startedAt: started, workerId: deps.workerId })
+    .values({ trigger, shopId, status: "running", scheduledFor, startedAt: started, workerId: deps.workerId })
     .returning({ id: scrapingRuns.id });
   const runId = run!.id;
   await db.update(workerStatus).set({ currentRunId: runId }).where(eq(workerStatus.id, deps.workerId));
@@ -185,6 +189,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
 
   try {
     let settings: AppSettings = await getAppSettings(db);
+    if (shopId !== MARJANE_SHOP_ID) settings = { ...settings, dealPagePaths: adapter.dealPagePaths ?? [] };
     if (adapter.discoverCampaigns) {
       try {
         const discovered = await adapter.discoverCampaigns();
@@ -195,7 +200,8 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
         await recordError('campaigns',firstLine((err as Error).message),'/');
       }
     }
-    const criteria = (await listCriteria(db, { enabledOnly: true })).map(c => withProfileConstraints(c, settings.shopperProfile));
+    const criteria = await Promise.all((await listCriteria(db, { enabledOnly: true, shopId })).map(async (c) =>
+      withProfileConstraints(c, await getUserProfile(db, c.ownerId!))));
     // Promotion pages (Ventes flash…) are collected even without criteria.
     if (criteria.length === 0 && settings.dealPagePaths.length === 0) {
       fatal = "Aucun critère de recherche actif : rien à collecter. Créez ou activez un critère dans « Mes critères de recherche ».";
@@ -275,6 +281,7 @@ async function collect(
   trigger: RunTrigger = "manual",
 ): Promise<AccessBlockedError | RobotsDisallowedError | null> {
   const { db, adapter } = deps;
+  const shopId = adapter.shopId ?? MARJANE_SHOP_ID;
   let blocked: AccessBlockedError | RobotsDisallowedError | null = null;
   // Only the user's own searches trigger alerts; recommended/promo criteria are
   // still evaluated (dashboard) but never notify.
@@ -283,7 +290,7 @@ async function collect(
   /* 1. Discover listings ---------------------------------------------------- */
   const dealPaths = new Set(settings.dealPagePaths);
   // Promotion pages first: they are plain HTML and stay useful even if a later listing is refused.
-  const previousCrawls = await db.select().from(listingCrawls);
+  const previousCrawls = await db.select().from(listingCrawls).where(eq(listingCrawls.shopId, shopId));
   const duePromos=settings.dealPagePaths.filter(path=>trigger==='manual' || !previousCrawls.some(c=>c.path===path && +now()-+c.lastSuccessAt < settings.promoRefreshHours*3600_000));
   stats.promoPagesSkipped=settings.dealPagePaths.length-duePromos.length;
   const paths = [...new Set([...duePromos, ...criteria.flatMap((c) => c.filters.categoryPaths)])];
@@ -304,7 +311,7 @@ async function collect(
       else {
         if (res.complete !== false) crawledPaths.push(path);
         const crawl = { lastSuccessAt: now(), itemCount: res.items.length, method: res.method };
-        await db.insert(listingCrawls).values({ path, ...crawl }).onConflictDoUpdate({ target: listingCrawls.path, set: crawl });
+        await db.insert(listingCrawls).values({ shopId, path, ...crawl }).onConflictDoUpdate({ target: [listingCrawls.shopId, listingCrawls.path], set: crawl });
       }
       for (const item of res.items) {
         stats.cardsSeen!++;
@@ -350,6 +357,7 @@ async function collect(
     .where(
       and(
         eq(dealMatches.isMatch, true),
+        eq(productOffers.shopId, shopId),
         inArray(dealMatches.criterionId, criteria.map((c) => c.id)),
         inArray(productOffers.status, ["active", "unavailable"]),
         seenSourceIds.length ? notInArray(productOffers.sourceId, seenSourceIds) : sql`true`,
@@ -367,7 +375,7 @@ async function collect(
   const handle = async (obs: OfferObservation, verifiedCriterionIds?: Set<string>) => {
     const t = now();
     await db.transaction(async (tx) => {
-      const saved = await saveObservation(tx, obs, runId, t);
+      const saved = await saveObservation(tx, { ...obs, shopId }, runId, t);
       seenOfferIds.add(saved.offerId);
       if (saved.isNewOffer) stats.newOffers!++;
       if (saved.previous.priceCents !== null && obs.priceCents < saved.previous.priceCents) stats.priceDrops!++;
@@ -464,7 +472,7 @@ async function collect(
   };
 
   // Verified positive and negative evaluations both avoid repeating an unchanged detail request.
-  const existingOffers = seenSourceIds.length ? await db.select().from(productOffers).where(inArray(productOffers.sourceId,seenSourceIds)) : [];
+  const existingOffers = seenSourceIds.length ? await db.select().from(productOffers).where(and(eq(productOffers.shopId,shopId),inArray(productOffers.sourceId,seenSourceIds))) : [];
   const existingBySource = new Map(existingOffers.map(o=>[o.sourceId,o]));
   const priorMatches = existingOffers.length ? (await db.execute<{offer_id:string;criterion_id:string}>(sql`
     select m.offer_id,m.criterion_id from deal_matches m join search_criteria c on c.id=m.criterion_id
@@ -523,7 +531,7 @@ async function collect(
         if (r.detail.warnings.length) log.debug({ url: item.url, warnings: r.detail.warnings }, "avertissements d'extraction");
       } else {
         if (r.kind === 'gone' || r.unavailable) {
-          const [existing] = await db.select({id: productOffers.id}).from(productOffers).where(eq(productOffers.sourceId, item.sourceId)).limit(1);
+          const [existing] = await db.select({id: productOffers.id}).from(productOffers).where(and(eq(productOffers.shopId,shopId),eq(productOffers.sourceId, item.sourceId))).limit(1);
           if (existing) { await db.transaction(tx => markOfferGone(tx, existing.id, now())); seenOfferIds.add(existing.id); }
           continue;
         }
@@ -566,12 +574,12 @@ async function collect(
   /* 4. Missing policy (only for listings crawled successfully) -------------- */
   // Every offer that appeared on a listing counts as seen, candidate or not.
   if (seenSourceIds.length) {
-    const visible = await db.select({ id: productOffers.id }).from(productOffers).where(inArray(productOffers.sourceId, seenSourceIds));
+    const visible = await db.select({ id: productOffers.id }).from(productOffers).where(and(eq(productOffers.shopId,shopId),inArray(productOffers.sourceId, seenSourceIds)));
     for (const v of visible) seenOfferIds.add(v.id);
   }
   // A refused run is incomplete: never use it to mark offers as missing.
   if (!blocked) {
-    stats.markedMissing = await db.transaction((tx) => applyMissingPolicy(tx, crawledPaths, seenOfferIds, settings.missingAfterRuns, now()));
+    stats.markedMissing = await db.transaction((tx) => applyMissingPolicy(tx, crawledPaths, seenOfferIds, settings.missingAfterRuns, now(), shopId));
   }
   return blocked;
 }

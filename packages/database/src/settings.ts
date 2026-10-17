@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { appSettingsSchema, DESTOCKAGE_PATHS, profileIsEmpty, type AppSettings } from "@mdw/shared";
 import type { DbOrTx } from "./client";
 import { applicationSettings, notificationSettings } from "./schema";
+import { getUserProfile } from "./user-profile";
 
 const APP_KEY = "app";
 
@@ -13,6 +14,12 @@ export async function getAppSettings(db: DbOrTx): Promise<AppSettings> {
   if (parsed.success) return parsed.data;
   // Keep valid parts: parse field by field over defaults.
   return appSettingsSchema.parse({});
+}
+
+/** Shared collection settings plus the signed-in shopper's private preferences. */
+export async function getUserSettings(db: DbOrTx, userId: string): Promise<AppSettings> {
+  const [settings, shopperProfile] = await Promise.all([getAppSettings(db), getUserProfile(db, userId)]);
+  return { ...settings, shopperProfile };
 }
 
 export async function saveAppSettings(db: DbOrTx, settings: AppSettings): Promise<AppSettings> {

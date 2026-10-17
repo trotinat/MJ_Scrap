@@ -14,7 +14,8 @@ export interface SettingsState {
 const num = (fd: FormData, k: string) => Number(String(fd.get(k) ?? "").replace(",", "."));
 
 export async function saveSettingsAction(_prev: SettingsState, fd: FormData): Promise<SettingsState> {
-  await requireUser();
+  const user = await requireUser();
+  if (user.email.toLowerCase() !== (process.env.ADMIN_EMAIL ?? "houssam@test.com").toLowerCase()) return { ok: false, message: "Seul le responsable peut modifier les réglages communs." };
   const db = getDb();
   const current = await getAppSettings(db);
   const candidate = {
@@ -64,7 +65,8 @@ const notifSchema = z.object({
 });
 
 export async function saveNotificationSettingsAction(_prev: SettingsState, fd: FormData): Promise<SettingsState> {
-  await requireUser();
+  const user = await requireUser();
+  if (user.email.toLowerCase() !== (process.env.ADMIN_EMAIL ?? "houssam@test.com").toLowerCase()) return { ok: false, message: "Seul le responsable peut modifier les réglages communs." };
   const parsed = notifSchema.safeParse({
     enabled: fd.get("enabled") === "on",
     sendImages: fd.get("sendImages") === "on",

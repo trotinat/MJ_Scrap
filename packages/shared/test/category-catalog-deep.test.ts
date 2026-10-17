@@ -30,7 +30,8 @@ describe("extractCategoryPaths", () => {
   it("strips query/hash, trailing slash, and de-duplicates", () => {
     const html = `
       <a href="/sport/fitness-musculation/?sort=price#top">A</a>
-      <a href="/sport/fitness-musculation">A again</a>
+      <a href="https://www.marjanemall.ma/sport/fitness-musculation">A again</a>
+      <a href="https://other.example/sport/fitness-musculation/fake">External</a>
     `;
     expect(extractCategoryPaths(html, roots)).toEqual(["/sport/fitness-musculation"]);
   });

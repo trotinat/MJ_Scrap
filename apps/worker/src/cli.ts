@@ -7,13 +7,19 @@ import {
   createDb,
   createUser,
   findUserByEmail,
+  grantUserShop,
+  revokeUserShop,
+  listUserShops,
+  listShops,
+  registerShop,
+  setShopActive,
   getAppSettings,
   getNotificationSettings,
+  primaryUserId,
   runMigrations,
   saveAppSettings,
   seedRecommendedCriteria,
   seedFashionCriteria,
-  seedDefaultProfile,
   upgradeRecommendedCriteria,
   upgradeDealPages,
   upgradeDestockagePages,
@@ -24,8 +30,7 @@ import { EXAMPLE_CRITERIA, formatMad } from "@mdw/shared";
 import { formatTestMessage, telegramConfigFromEnv, TelegramClient } from "@mdw/notifications";
 import { loadConfig } from "./config";
 import { createLogger } from "./logger";
-import { lazyDeps } from "./deps";
-import { runScrape } from "./pipeline";
+import { lazyDeps, runEnabledShops } from "./deps";
 import { reevaluateSaved } from './reevaluate';
 
 const USAGE = `Usage : node dist/cli.js <commande>
@@ -34,6 +39,13 @@ const USAGE = `Usage : node dist/cli.js <commande>
                           l'administrateur depuis ADMIN_EMAIL / ADMIN_PASSWORD s'il n'existe aucun compte.
   create-admin <email>    Crée un administrateur (mot de passe lu dans ADMIN_PASSWORD ou demandé).
   reset-password <email>  Change le mot de passe d'un administrateur.
+  shops:list <email>     Affiche les boutiques accessibles à un compte.
+  shops:grant <email> <id>  Attribue une boutique active à un compte.
+  shops:revoke <email> <id> Retire une boutique d'un compte.
+  shops:add <id> <name> <url>  Enregistre une boutique (inactive jusqu'au connecteur).
+  shops:catalog             Affiche le catalogue des boutiques.
+  shops:enable <id>         Active un connecteur prêt à collecter.
+  shops:disable <id>        Suspend une boutique.
   seed-examples           Ajoute les 3 critères d'exemple (désactivés).
   run-now                 Lance immédiatement une collecte complète.
   reevaluate              Revérifie les offres enregistrées, sans collecte ni envoi d'alertes.
@@ -68,6 +80,15 @@ async function main() {
         await saveAppSettings(db, await getAppSettings(db));
         await getNotificationSettings(db);
         logger.info("migrations appliquées");
+        if ((await countUsers(db)) === 0) {
+          if (config.ADMIN_EMAIL && config.ADMIN_PASSWORD) {
+            await createUser(db, config.ADMIN_EMAIL, config.ADMIN_PASSWORD);
+            logger.info({ email: config.ADMIN_EMAIL }, "administrateur initial créé");
+          } else {
+            logger.warn("aucun administrateur : définissez ADMIN_EMAIL et ADMIN_PASSWORD ou utilisez create-admin");
+            break;
+          }
+        }
         const added = await seedRecommendedCriteria(db, { once: true });
         if (added) logger.info({ added }, "critères recommandés ajoutés");
         if (await upgradeRecommendedCriteria(db)) logger.info("critère Adidas Homme : exclusions enfants complétées");
@@ -75,15 +96,6 @@ async function main() {
         if (await upgradeDestockagePages(db)) logger.info("pages de déstockage ajoutées (mode-sport, high-tech, maison, beauté)");
         const fashion = await seedFashionCriteria(db);
         if (fashion) logger.info({ added: fashion }, "recherches mode homme ajoutées (hauts, pantalons, chaussures)");
-        if (await seedDefaultProfile(db)) logger.info("profil de départ renseigné (Homme, pointure 42, taille M, pantalon 32/33)");
-        if ((await countUsers(db)) === 0) {
-          if (config.ADMIN_EMAIL && config.ADMIN_PASSWORD) {
-            await createUser(db, config.ADMIN_EMAIL, config.ADMIN_PASSWORD);
-            logger.info({ email: config.ADMIN_EMAIL }, "administrateur initial créé");
-          } else {
-            logger.warn("aucun administrateur : définissez ADMIN_EMAIL et ADMIN_PASSWORD ou utilisez create-admin");
-          }
-        }
         break;
       }
       case "create-admin": {
@@ -104,13 +116,40 @@ async function main() {
         console.log("Mot de passe modifié ; toutes les sessions ont été fermées.");
         break;
       }
+      case "shops:list":
+      case "shops:grant":
+      case "shops:revoke": {
+        const user = args[0] ? await findUserByEmail(db, args[0]) : null;
+        if (!user) throw new Error("Compte introuvable");
+        if (cmd !== "shops:list") {
+          if (!args[1]) throw new Error("Identifiant de boutique requis");
+          if (cmd === "shops:grant") await grantUserShop(db, user.id, args[1]);
+          else await revokeUserShop(db, user.id, args[1]);
+        }
+        console.log(JSON.stringify(await listUserShops(db, user.id), null, 2));
+        break;
+      }
+      case "shops:add": {
+        if (!args[0] || !args[1] || !args[2]) throw new Error("Usage : shops:add <id> <nom> <url>");
+        console.log(JSON.stringify(await registerShop(db, { id: args[0], name: args[1], baseUrl: args[2] }), null, 2));
+        break;
+      }
+      case "shops:catalog":
+        console.log(JSON.stringify(await listShops(db), null, 2));
+        break;
+      case "shops:enable":
+      case "shops:disable":
+        if (!args[0]) throw new Error("Identifiant de boutique requis");
+        await setShopActive(db, args[0], cmd === "shops:enable");
+        console.log(JSON.stringify(await listShops(db), null, 2));
+        break;
       case "seed-examples": {
-        for (const c of EXAMPLE_CRITERIA) await createCriterion(db, c);
+        for (const c of EXAMPLE_CRITERIA) await createCriterion(db, c, await primaryUserId(db));
         console.log(`${EXAMPLE_CRITERIA.length} critères d'exemple ajoutés (désactivés).`);
         break;
       }
       case "run-now": {
-        const outcome = await runScrape(lazyDeps(db, pool, config, logger), "manual");
+        const outcome = await runEnabledShops(db, pool, config, logger, "manual");
         console.log(JSON.stringify(outcome, null, 2));
         if (outcome.status === "failed") process.exitCode = 2;
         break;

@@ -71,14 +71,21 @@ export function extractCategoryPaths(html: string, rootsInput: Iterable<string>)
   const roots = new Set([...rootsInput].map((r) => r.replace(/^\//, "")));
   const out = new Set<string>();
   const add = (raw: string) => {
-    const path = raw.replace(/\\\//g, "/").split(/[?#]/)[0]!.replace(/\/+$/, "");
+    const link = raw.replace(/\\\//g, "/");
+    let path = link;
+    if (/^https?:\/\//i.test(link)) {
+      const url = new URL(link);
+      if (url.hostname !== "www.marjanemall.ma" && url.hostname !== "marjanemall.ma") return;
+      path = url.pathname;
+    }
+    path = path.split(/[?#]/)[0]!.replace(/\/+$/, "");
     if (!/^\/[a-z0-9][a-z0-9/-]*$/.test(path)) return;
     const segs = path.split("/").filter(Boolean);
     if (segs.length < 2) return; // need at least a department + one child
     if (!roots.has(segs[0]!)) return; // only the known departments, never /p/, promos, brand stores
     out.add(path);
   };
-  for (const m of html.matchAll(/href=["'](\/[^"'?#]+)["']/gi)) add(m[1]!);
-  for (const m of html.matchAll(/["'](?:url|path|href|slug|canonical|canonicalUrl)["']\s*:\s*["'](\/[^"'?#\\]+)["']/gi)) add(m[1]!);
+  for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) add(m[1]!);
+  for (const m of html.matchAll(/["'](?:url|path|href|slug|canonical|canonicalUrl)["']\s*:\s*["']([^"']+)["']/gi)) add(m[1]!);
   return [...out].sort();
 }

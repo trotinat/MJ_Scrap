@@ -13,6 +13,11 @@ node_modules/
 .next-home-v4/
 .next-search-collect/
 .next-categories-verified/
+.next-claude-repair/
+.next-claude-repair-final/
+.next-tenants/
+.next-hawta/
+.next-hawta2/
 dist/
 out/
 coverage/
@@ -31,3 +36,4 @@ next-env.d.ts
 .localbuild
 .localbrowser
 .audit/
+graphify-out/

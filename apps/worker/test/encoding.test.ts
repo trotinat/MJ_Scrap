@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { createDb, createCriterion, productOffers, runMigrations, saveAppSettings, scrapingRuns, type DbHandle } from "@mdw/database";
+import { createDb, createCriterion, createUser, productOffers, runMigrations, saveAppSettings, scrapingRuns, type DbHandle } from "@mdw/database";
 import type { DetailResult, ListingResult, SiteAdapter } from "@mdw/scraper";
 import { DEFAULT_SETTINGS, RECOMMENDED_CRITERIA } from "@mdw/shared";
 import { runScrape } from "../src/pipeline";
@@ -35,7 +35,8 @@ describeDb("database without UTF-8 (Windows code page)", () => {
 
   it("records each failure and always closes the run", async () => {
     await saveAppSettings(h.db, { ...DEFAULT_SETTINGS, maxDetailFetchesPerRun: 0, dealPagePaths: ["/ventes-flash"] });
-    await createCriterion(h.db, RECOMMENDED_CRITERIA[1]!); // Ventes flash -40 %
+    const owner = await createUser(h.db, "owner@example.com", "un-mot-de-passe-solide");
+    await createCriterion(h.db, RECOMMENDED_CRITERIA[1]!, owner.id); // Ventes flash -40 %
     const card = (sourceId: string, title: string, price: number, old: number) => ({
       sourceId, url: `https://www.marjanemall.ma/p/x-${sourceId}`, title, imageUrl: null, priceCents: price, originalPriceCents: old,
       advertisedDiscountPct: Math.round((1 - price / old) * 100), seller: null, reviewCount: null, rating: null, listingPath: "/ventes-flash",

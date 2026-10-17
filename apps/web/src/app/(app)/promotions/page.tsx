@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download, GitCompare, SlidersHorizontal, Tag } from "lucide-react";
-import { getAppSettings, getDb } from "@mdw/database";
+import { getDb, getUserSettings } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { btn, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
 import { dealFacets, listDeals } from "@/lib/queries";
@@ -10,8 +11,9 @@ import type { DealClass } from "@mdw/shared";
 export const metadata = { title: "Résultats · Bons plans" };
 
 export default async function PromotionsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const user = await requireUser();
   const filters = parseDealFilters(await searchParams);
-  const [deals, facets, settings] = await Promise.all([listDeals({ ...filters, pageSize: 24 }), dealFacets(), getAppSettings(getDb())]);
+  const [deals, facets, settings] = await Promise.all([listDeals({ ...filters, pageSize: 24 }), dealFacets(), getUserSettings(getDb(), user.id)]);
   const pages = Math.max(1, Math.ceil(deals.total / 24));
   const page = filters.page ?? 1;
   const qs = filtersToQuery({ ...filters, page: undefined });
@@ -20,7 +22,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
     <>
       <PageHeader
         title="Vos résultats"
-        description={`${deals.total} offres correspondant à vos recherches, classées par score du bon plan. Les baisses en vert sont mesurées ; les remises en rouge sont annoncées par Marjane.`}
+        description={`${deals.total} offres correspondant à vos recherches, classées par score du bon plan. Les baisses en vert sont mesurées ; les remises en rouge sont annoncées par les boutiques.`}
         actions={
           <>
             <a href={`/api/export?format=csv&${qs}`} className={btn.secondary}>
@@ -52,6 +54,10 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
         <SlidersHorizontal className="h-4 w-4" aria-hidden /> Filtrer et trier
       </summary>
       <form method="get" className="grid gap-3 border-t border-paper-line p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <select name="shopId" defaultValue={filters.shopId ?? ""} className={input} aria-label="Boutique">
+          <option value="">Toutes mes boutiques</option>
+          {facets.shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+        </select>
         <input name="q" defaultValue={filters.q} placeholder="Rechercher…" className={input} aria-label="Recherche" />
         <select name="criterionId" defaultValue={filters.criterionId ?? ""} className={input} aria-label="Critère">
           <option value="">Tous les critères</option>
@@ -127,6 +133,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
                 compareForm="compare-form"
                 d={{
                   offerId: d.offer_id,
+                  shopName: d.shop_name,
                   title: d.title,
                   url: d.url,
                   imageUrl: d.image_url,

@@ -1,4 +1,4 @@
-import { getAppSettings, getDb } from "@mdw/database";
+import { getAppSettings, getDb, getUserProfile, requireUserShop, MARJANE_SHOP_ID } from "@mdw/database";
 import { evaluate } from "@mdw/scoring";
 import { configureProxyFromEnv, MarjaneAdapter } from "@mdw/scraper";
 import { anyPhraseMatches, criterionInputSchema, extractSpecs, normalizeRef, withProfileConstraints, type MatchableProduct, type PriceHistoryFacts } from "@mdw/shared";
@@ -14,13 +14,16 @@ const noHistory: PriceHistoryFacts = {
 let running = false;
 
 export async function POST(request: Request) {
-  await requireUser();
+  const user = await requireUser();
   const raw = await request.text();
   if (raw.length > 64_000) return Response.json({ message: "Recherche trop longue." }, { status: 413 });
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return Response.json({ message: "Recherche invalide." }, { status: 400 }); }
   const parsed = criterionInputSchema.safeParse(body);
   if (!parsed.success) return Response.json({ message: parsed.error.issues[0]?.message ?? "Recherche invalide." }, { status: 400 });
+  try { await requireUserShop(getDb(), user.id, parsed.data.shopId); }
+  catch { return Response.json({ message: "Boutique indisponible pour ce compte." }, { status: 403 }); }
+  if (parsed.data.shopId !== MARJANE_SHOP_ID) return Response.json({ message: "Le test de cette boutique sera disponible avec son collecteur." }, { status: 409 });
   if (running) return Response.json({ message: "Un test est déjà en cours. Réessayez dans un instant." }, { status: 429 });
   running = true;
 
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
       let errors = 0;
       try {
         const settings = await getAppSettings(getDb());
-        const criterion = withProfileConstraints({ id: "preview", ...parsed.data }, settings.shopperProfile);
+        const criterion = withProfileConstraints({ id: "preview", ...parsed.data }, await getUserProfile(getDb(), user.id));
         const paths = (criterion.filters.categoryPaths.length ? criterion.filters.categoryPaths : settings.dealPagePaths).slice(0, 2);
         if (!paths.length) throw new Error("Choisissez au moins un rayon à parcourir.");
         configureProxyFromEnv();

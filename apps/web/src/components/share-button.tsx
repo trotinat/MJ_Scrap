@@ -21,8 +21,9 @@ export function ShareButton({ url, title, label, className }: { url: string; tit
         await navigator.share(data);
         return;
       }
-    } catch {
-      // user cancelled the share sheet, or it failed: fall through to copy
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      // A failed share can still fall back to copying the link.
     }
     try {
       await navigator.clipboard.writeText(url);

@@ -2,7 +2,7 @@ import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "no
 import { promisify } from "node:util";
 import { and, count, eq, gt, lt, sql } from "drizzle-orm";
 import type { DbOrTx } from "./client";
-import { loginAttempts, sessions, users } from "./schema";
+import { loginAttempts, sessions, users, userShops } from "./schema";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, keylen: number, opts: object) => Promise<Buffer>;
 
@@ -45,6 +45,7 @@ export async function createUser(db: DbOrTx, email: string, password: string) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("Adresse e-mail invalide");
   const passwordHash = await hashPassword(password);
   const [row] = await db.insert(users).values({ email: normalized, passwordHash }).returning();
+  await db.insert(userShops).values({ userId: row!.id, shopId: "marjane-mall" }).onConflictDoNothing();
   return row!;
 }
 

@@ -3,8 +3,8 @@ import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Bons plans Marjane", template: "%s · Bons plans Marjane" },
-  description: "Vos promotions Marjane Mall, vérifiées et triées.",
+  title: { default: "Hawta", template: "%s · Hawta" },
+  description: "Les bons plans du Maroc, vérifiés et triés pour vous.",
   robots: { index: false, follow: false },
 };
 

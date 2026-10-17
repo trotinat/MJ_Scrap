@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     return new Response(toCsv(rows, EXPORT_COLUMNS), {
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="promotions-marjane-${stamp}.csv"`,
+        "content-disposition": `attachment; filename="hawta-promotions-${stamp}.csv"`,
         "cache-control": "no-store",
       },
     });
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   return new Response(new Uint8Array(buf), {
     headers: {
       "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="promotions-marjane-${stamp}.xlsx"`,
+      "content-disposition": `attachment; filename="hawta-promotions-${stamp}.xlsx"`,
       "cache-control": "no-store",
     },
   });

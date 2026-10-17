@@ -3,9 +3,11 @@ import { listingAppearances, priceHistory, productOffers, products, type Tx } fr
 import { canonicalProductKey } from "@mdw/scraper";
 import { extractSpecs, type MatchableProduct, type StockStatus } from "@mdw/shared";
 import { historyFacts } from "@mdw/scoring";
+import { MARJANE_SHOP_ID } from "@mdw/database";
 
 /** Normalized observation of one offer, from a product page or a listing card. */
 export interface OfferObservation {
+  shopId?: string;
   sourceId: string;
   url: string;
   title: string;
@@ -52,15 +54,17 @@ export interface SavedObservation {
  * changes (drops, restocks) can be detected.
  */
 export async function saveObservation(tx: Tx, o: OfferObservation, runId: string, now: Date): Promise<SavedObservation> {
+  const shopId = o.shopId ?? MARJANE_SHOP_ID;
   const specs = extractSpecs(o.title, o.rawSpecs);
   let key = canonicalProductKey(o.brand, o.modelRef, o.sourceId, specs);
 
-  const [existingOffer] = await tx.select().from(productOffers).where(eq(productOffers.sourceId, o.sourceId)).limit(1).for("update");
+  const [existingOffer] = await tx.select().from(productOffers).where(and(eq(productOffers.shopId, shopId), eq(productOffers.sourceId, o.sourceId))).limit(1).for("update");
   const [existingProduct] = existingOffer ? await tx.select().from(products).where(eq(products.id, existingOffer.productId)).limit(1) : [];
   if (existingProduct && (o.source === 'listing' || key.startsWith('src:'))) key = existingProduct.canonicalKey;
 
   // Product upsert. A listing-only observation (no specs) never overwrites richer data.
   const productValues = {
+    shopId,
     canonicalKey: key,
     name: o.title,
     brand: o.brand,
@@ -84,7 +88,7 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
   const [product] = await tx
     .insert(products)
     .values({ ...productValues, firstSeenAt: now })
-    .onConflictDoUpdate({ target: products.canonicalKey, set: updateSet })
+    .onConflictDoUpdate({ target: [products.shopId, products.canonicalKey], set: updateSet })
     .returning();
 
   let offerId: string;
@@ -132,6 +136,7 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     const [inserted] = await tx
       .insert(productOffers)
       .values({
+        shopId,
         productId: product!.id,
         sourceId: o.sourceId,
         url: o.url,
@@ -232,12 +237,13 @@ export async function applyMissingPolicy(
   seenOfferIds: Set<string>,
   missingAfterRuns: number,
   now: Date,
+  shopId = MARJANE_SHOP_ID,
 ): Promise<number> {
   if (crawledPaths.length === 0) return 0;
   const candidates = await tx
     .select({ id: productOffers.id, misses: productOffers.consecutiveMisses })
     .from(productOffers)
-    .where(and(eq(productOffers.status, "active"), inArray(productOffers.lastListingPath, crawledPaths)));
+    .where(and(eq(productOffers.shopId, shopId), eq(productOffers.status, "active"), inArray(productOffers.lastListingPath, crawledPaths)));
   let marked = 0;
   for (const c of candidates) {
     if (seenOfferIds.has(c.id)) continue;

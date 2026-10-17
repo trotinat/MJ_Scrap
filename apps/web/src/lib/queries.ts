@@ -2,7 +2,9 @@ import "server-only";
 import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   dealMatches,
+  listUserShops,
   getAppSettings,
+  getUserSettings,
   getDb,
   notifications,
   priceHistory,
@@ -14,25 +16,27 @@ import {
   workerStatus,
 } from "@mdw/database";
 import { DEFAULT_SCRAPE_TIMES, nextScheduledRuns, fitsPromotionProfile } from "@mdw/shared";
+import { requireUser } from "./session";
 
 const db = () => getDb();
 
 /* ---------------------------------------------------------------- dashboard */
 
 export async function dashboardStats() {
+  const userId = (await requireUser()).id;
   const since24h = new Date(Date.now() - 24 * 3600_000);
   const [[offersRow], [criteriaRow], newDealsRes, targetRows, dropRows, [lastSuccess], [lastRun], worker, notifStats, recentNotifs] =
     await Promise.all([
-      db().select({ n: count() }).from(productOffers).where(inArray(productOffers.status, ["active", "unavailable"])),
-      db().select({ n: count() }).from(searchCriteria).where(eq(searchCriteria.enabled, true)),
+      db().select({ n: count() }).from(productOffers).where(and(inArray(productOffers.status, ["active", "unavailable"]), sql`exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=${productOffers.shopId} and s.active)`)),
+      db().select({ n: count() }).from(searchCriteria).where(and(eq(searchCriteria.enabled, true), eq(searchCriteria.userId, userId))),
       db().execute<{ n: number }>(sql`
         select count(*)::int as n from deal_matches m
         join search_criteria c on c.id = m.criterion_id
-        where m.is_match and c.enabled and m.first_matched_at >= ${since24h}`),
+        where m.is_match and c.enabled and c.user_id = ${userId} and m.first_matched_at >= ${since24h}`),
       db().execute<{ n: number }>(sql`
         select count(*)::int as n from deal_matches m
         join search_criteria c on c.id = m.criterion_id
-        where m.is_match and c.enabled and (c.filters->>'targetPrice') is not null
+        where m.is_match and c.enabled and c.user_id = ${userId} and (c.filters->>'targetPrice') is not null
           and m.price_cents <= round((c.filters->>'targetPrice')::numeric * 100)`),
       db().execute<{ n: number }>(sql`
         select count(*)::int as n from (
@@ -40,7 +44,7 @@ export async function dashboardStats() {
                  lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
           from price_history ph
           where ph.observed_at > now() - interval '8 days'
-            and exists (select 1 from deal_matches m join search_criteria c on c.id = m.criterion_id where m.offer_id = ph.offer_id and m.is_match and c.enabled)
+            and exists (select 1 from deal_matches m join search_criteria c on c.id = m.criterion_id where m.offer_id = ph.offer_id and m.is_match and c.enabled and c.user_id = ${userId})
         ) x where x.observed_at > ${since24h} and x.prev is not null and x.price_cents <= x.prev * 0.95`),
       db()
         .select()
@@ -51,8 +55,10 @@ export async function dashboardStats() {
       db().select().from(scrapingRuns).orderBy(desc(scrapingRuns.startedAt)).limit(1),
       db().select().from(workerStatus).orderBy(desc(workerStatus.heartbeatAt)).limit(1),
       db().execute<{ status: string; n: number }>(sql`
-        select status, count(*)::int as n from notifications where created_at > now() - interval '7 days' group by status`),
-      db().select().from(notifications).orderBy(desc(notifications.createdAt)).limit(5),
+        select n.status, count(*)::int as n from notifications n join search_criteria c on c.id = n.criterion_id
+        where c.user_id = ${userId} and n.created_at > now() - interval '7 days' group by n.status`),
+      db().select().from(notifications).innerJoin(searchCriteria, eq(searchCriteria.id, notifications.criterionId))
+        .where(eq(searchCriteria.userId, userId)).orderBy(desc(notifications.createdAt)).limit(5),
     ]);
 
   const w = worker[0] ?? null;
@@ -76,6 +82,7 @@ export async function dashboardStats() {
 /* ------------------------------------------------------------------- deals */
 
 export interface DealFilters {
+  shopId?: string;
   criterionId?: string;
   category?: string;
   brand?: string;
@@ -90,6 +97,8 @@ export interface DealFilters {
 }
 
 export type DealRow = {
+  shop_id: string;
+  shop_name: string;
   offer_id: string;
   product_id: string;
   title: string;
@@ -113,14 +122,17 @@ export type DealRow = {
 };
 
 export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; total: number }> {
+  const userId = (await requireUser()).id;
   const pageSize = Math.min(f.pageSize ?? 24, 5000);
   const page = Math.max(1, f.page ?? 1);
   const settings = await getAppSettings(db());
   const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
-  const where = [sql`m.is_match = true`, sql`c.enabled = true`, sql`o.status = 'active'`, sql`o.last_success_at >= ${freshSince}`,
+  const where = [sql`m.is_match = true`, sql`c.enabled = true`, sql`c.user_id = ${userId}`, sql`c.shop_id = o.shop_id`, sql`exists (select 1 from user_shops us join shops s2 on s2.id = us.shop_id where us.user_id = ${userId} and us.shop_id = o.shop_id and s2.active)`, sql`o.status = 'active'`, sql`o.last_success_at >= ${freshSince}`,
     sql`m.last_evaluated_at >= c.updated_at`,
+    sql`m.last_evaluated_at >= coalesce((select updated_at from user_profiles where user_id = c.user_id), '-infinity'::timestamptz)`,
     sql`m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)`];
   if (f.criterionId) where.push(sql`m.criterion_id = ${f.criterionId}`);
+  if (f.shopId) where.push(sql`o.shop_id = ${f.shopId}`);
   if (f.category) where.push(sql`p.category_path like ${`${f.category}%`}`);
   if (f.brand) where.push(sql`p.brand ilike ${f.brand}`);
   if (f.minPrice !== undefined) where.push(sql`o.current_price_cents >= ${Math.round(f.minPrice * 100)}`);
@@ -143,6 +155,7 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
   const base = sql`
     from deal_matches m
     join product_offers o on o.id = m.offer_id
+    join shops sh on sh.id = o.shop_id
     join products p on p.id = o.product_id
     join search_criteria c on c.id = m.criterion_id
     left join lateral (
@@ -150,11 +163,11 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
     where ${sql.join(where, sql` and `)}
-    group by o.id, p.id, prev.price_cents
+    group by o.id, p.id, sh.id, prev.price_cents
     ${having}`;
 
   const rows = await db().execute<DealRow>(sql`
-    select o.id as offer_id, p.id as product_id, o.title, o.url, p.image_url, p.brand, p.category_path, o.seller,
+    select o.id as offer_id, o.shop_id, sh.name as shop_name, p.id as product_id, o.title, o.url, p.image_url, p.brand, p.category_path, o.seller,
       o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
       o.stock_status, o.status as offer_status, o.last_success_at, o.first_seen_at, prev.price_cents as prev_price_cents, o.min_price_cents,
       case when prev.price_cents > 0 then round(((o.current_price_cents - prev.price_cents)::numeric / prev.price_cents) * 1000) / 10 end::float as drop_pct,
@@ -168,25 +181,34 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
 }
 
 export async function dealFacets() {
-  const [brands, categories, criteria] = await Promise.all([
+  const userId = (await requireUser()).id;
+  const [brands, categories, criteria, shops] = await Promise.all([
     db().execute<{ brand: string }>(sql`
       select distinct p.brand from products p join product_offers o on o.product_id = p.id
-      join deal_matches m on m.offer_id = o.id and m.is_match where p.brand is not null order by 1`),
+      join deal_matches m on m.offer_id = o.id and m.is_match
+      join search_criteria c on c.id = m.criterion_id and c.user_id = ${userId}
+      where p.brand is not null order by 1`),
     db().execute<{ category_path: string }>(sql`
-      select distinct p.category_path from products p where p.category_path is not null order by 1`),
-    db().select({ id: searchCriteria.id, name: searchCriteria.name, enabled: searchCriteria.enabled }).from(searchCriteria).orderBy(searchCriteria.name),
+      select distinct p.category_path from products p join product_offers o on o.product_id = p.id
+      join deal_matches m on m.offer_id = o.id and m.is_match
+      join search_criteria c on c.id = m.criterion_id and c.user_id = ${userId}
+      where p.category_path is not null order by 1`),
+    db().select({ id: searchCriteria.id, name: searchCriteria.name, enabled: searchCriteria.enabled }).from(searchCriteria)
+      .where(eq(searchCriteria.userId, userId)).orderBy(searchCriteria.name),
+    listUserShops(db(), userId),
   ]);
-  return { brands: brands.rows.map((r) => r.brand), categories: categories.rows.map((r) => r.category_path), criteria };
+  return { brands: brands.rows.map((r) => r.brand), categories: categories.rows.map((r) => r.category_path), criteria, shops };
 }
 
 /* ----------------------------------------------------------------- product */
 
 export async function offerDetail(offerId: string) {
+  const userId = (await requireUser()).id;
   const [row] = await db()
     .select({ offer: productOffers, product: products })
     .from(productOffers)
     .innerJoin(products, eq(products.id, productOffers.productId))
-    .where(eq(productOffers.id, offerId))
+    .where(and(eq(productOffers.id, offerId), sql`exists (select 1 from user_shops us join shops s on s.id = us.shop_id where us.user_id = ${userId} and us.shop_id = ${productOffers.shopId} and s.active)`))
     .limit(1);
   if (!row) return null;
   const [history, matches, siblings] = await Promise.all([
@@ -199,7 +221,7 @@ export async function offerDetail(offerId: string) {
       .select({ match: dealMatches, criterion: { id: searchCriteria.id, name: searchCriteria.name, enabled: searchCriteria.enabled } })
       .from(dealMatches)
       .innerJoin(searchCriteria, eq(searchCriteria.id, dealMatches.criterionId))
-      .where(eq(dealMatches.offerId, offerId))
+      .where(and(eq(dealMatches.offerId, offerId), eq(searchCriteria.userId, userId)))
       .orderBy(desc(dealMatches.score)),
     db()
       .select()
@@ -212,16 +234,18 @@ export async function offerDetail(offerId: string) {
 /** Offers of the same products for the comparison view. */
 export async function offersForCompare(ids: string[]) {
   if (ids.length === 0) return [];
+  const userId = (await requireUser()).id;
   return db()
     .select({ offer: productOffers, product: products })
     .from(productOffers)
     .innerJoin(products, eq(products.id, productOffers.productId))
-    .where(inArray(productOffers.id, ids.slice(0, 4)));
+    .where(and(inArray(productOffers.id, ids.slice(0, 4)), sql`exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=${productOffers.shopId} and s.active)`));
 }
 
 /* ----------------------------------------------------------- price history */
 
 export async function recentPriceChanges(q?: string, limit = 100) {
+  const userId = (await requireUser()).id;
   const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
   const res = await db().execute<{
     offer_id: string;
@@ -240,6 +264,7 @@ export async function recentPriceChanges(q?: string, limit = 100) {
     ) x
     join product_offers o on o.id = x.offer_id
     where x.prev is not null and x.prev <> x.price_cents ${filter}
+      and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
     order by x.observed_at desc
     limit ${limit}`);
   return res.rows;
@@ -261,9 +286,10 @@ export type TrackedOffer = {
 };
 
 export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limit?: number } = {}): Promise<TrackedOffer[]> {
+  const userId = (await requireUser()).id;
   const { q, sort = "recent" } = opts;
   const limit = Math.min(opts.limit ?? 100, 300);
-  const filter = q ? sql`where o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
+  const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
   // "Closest to its lowest" first: smallest gap between current and min price.
   const order =
     sort === "cheapest"
@@ -281,7 +307,7 @@ export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limi
         select json_agg(x.price_cents order by x.observed_at, x.id)
         from (select price_cents, observed_at, id from price_history ph where ph.offer_id = o.id order by observed_at desc, id desc limit 40) x
       ), '[]'::json) as spark
-    from product_offers o ${filter}
+    from product_offers o where exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active) ${filter}
     order by ${order}
     limit ${limit}`);
   return res.rows;
@@ -289,6 +315,8 @@ export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limi
 
 /** Headline counts for the price-history page. */
 export async function priceHistorySummary(q?: string) {
+  const userId = (await requireUser()).id;
+  const access = sql`and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)`;
   const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
   const [row] = (await db().execute<{
     tracked: number;
@@ -297,16 +325,16 @@ export async function priceHistorySummary(q?: string) {
     drops_7d: number;
   }>(sql`
     select
-      (select count(*)::int from product_offers o where true ${filter}) as tracked,
-      (select count(*)::int from price_history ph join product_offers o on o.id = ph.offer_id where true ${filter}) as observations,
+      (select count(*)::int from product_offers o where true ${access} ${filter}) as tracked,
+      (select count(*)::int from price_history ph join product_offers o on o.id = ph.offer_id where true ${access} ${filter}) as observations,
       (select count(*)::int from product_offers o
          where o.current_price_cents is not null and o.min_price_cents is not null
-           and o.current_price_cents <= o.min_price_cents ${filter}) as at_lowest,
+           and o.current_price_cents <= o.min_price_cents ${access} ${filter}) as at_lowest,
       (select count(*)::int from (
          select ph.offer_id, ph.price_cents, ph.observed_at,
                 lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
          from price_history ph join product_offers o on o.id = ph.offer_id
-         where ph.observed_at > now() - interval '7 days' ${filter}
+         where ph.observed_at > now() - interval '7 days' ${access} ${filter}
        ) x where x.prev is not null and x.price_cents < x.prev) as drops_7d`)).rows;
   return {
     tracked: Number(row?.tracked ?? 0),
@@ -319,7 +347,8 @@ export async function priceHistorySummary(q?: string) {
 /* ------------------------------------------------------------------- runs */
 
 export async function listRuns(limit = 50) {
-  const runs = await db().select().from(scrapingRuns).orderBy(desc(scrapingRuns.startedAt)).limit(limit);
+  const userId = (await requireUser()).id;
+  const runs = await db().select().from(scrapingRuns).where(sql`exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=${scrapingRuns.shopId} and s.active)`).orderBy(desc(scrapingRuns.startedAt)).limit(limit);
   const ids = runs.map((r) => r.id);
   const errors = ids.length
     ? await db().select().from(scrapingErrors).where(inArray(scrapingErrors.runId, ids)).orderBy(scrapingErrors.id)
@@ -332,7 +361,8 @@ export async function listRuns(limit = 50) {
 /* ---------------------------------------------------------- notifications */
 
 export async function listNotifications(status?: string, criterionId?: string, limit = 100) {
-  const where = [];
+  const userId = (await requireUser()).id;
+  const where = [eq(searchCriteria.userId, userId), sql`exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=${searchCriteria.shopId} and s.active)`];
   if (status) where.push(eq(notifications.status, status as "pending"));
   if (criterionId) where.push(eq(notifications.criterionId, criterionId));
   return db()
@@ -343,7 +373,7 @@ export async function listNotifications(status?: string, criterionId?: string, l
       offerId: productOffers.id,
     })
     .from(notifications)
-    .leftJoin(searchCriteria, eq(searchCriteria.id, notifications.criterionId))
+    .innerJoin(searchCriteria, eq(searchCriteria.id, notifications.criterionId))
     .leftJoin(productOffers, eq(productOffers.id, notifications.offerId))
     .where(where.length ? and(...where) : undefined)
     .orderBy(desc(notifications.createdAt))
@@ -353,6 +383,7 @@ export async function listNotifications(status?: string, criterionId?: string, l
 /* -------------------------------------------------------------- criterion */
 
 export async function criterionMatches(criterionId: string, limit = 30) {
+  const userId = (await requireUser()).id;
   const settings = await getAppSettings(db());
   const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   return db()
@@ -361,29 +392,36 @@ export async function criterionMatches(criterionId: string, limit = 30) {
     .innerJoin(productOffers, eq(productOffers.id, dealMatches.offerId))
     .innerJoin(products, eq(products.id, productOffers.productId))
     .innerJoin(searchCriteria, eq(searchCriteria.id, dealMatches.criterionId))
-    .where(and(eq(dealMatches.criterionId, criterionId), eq(dealMatches.isMatch, true), eq(searchCriteria.enabled, true),
+    .where(and(eq(dealMatches.criterionId, criterionId), eq(searchCriteria.userId, userId), eq(dealMatches.isMatch, true), eq(searchCriteria.enabled, true),
+      eq(searchCriteria.shopId, productOffers.shopId), sql`exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=${productOffers.shopId} and s.active)`,
       eq(productOffers.status, "active"), gte(productOffers.lastSuccessAt, freshSince),
       gte(dealMatches.lastEvaluatedAt, searchCriteria.updatedAt),
+      sql`${dealMatches.lastEvaluatedAt} >= coalesce((select updated_at from user_profiles where user_id = ${searchCriteria.userId}), '-infinity'::timestamptz)`,
       sql`${dealMatches.lastEvaluatedAt} >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)`))
     .orderBy(desc(dealMatches.score))
     .limit(limit);
 }
 
 export async function criteriaSummaries() {
+  const userId = (await requireUser()).id;
   const settings = await getAppSettings(db());
   const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const res = await db().execute<{ criterion_id: string; matches: number; best_score: number | null; last_notified: string | null }>(sql`
     select c.id as criterion_id,
       (select count(*)::int from deal_matches m join product_offers o on o.id = m.offer_id
-        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active'
+        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active' and o.shop_id = c.shop_id
+          and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
           and o.last_success_at >= ${freshSince} and m.last_evaluated_at >= c.updated_at
+          and m.last_evaluated_at >= coalesce((select updated_at from user_profiles where user_id = c.user_id), '-infinity'::timestamptz)
           and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)) as matches,
       (select max(m.score) from deal_matches m join product_offers o on o.id = m.offer_id
-        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active'
+        where m.criterion_id = c.id and m.is_match and c.enabled and o.status = 'active' and o.shop_id = c.shop_id
+          and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
           and o.last_success_at >= ${freshSince} and m.last_evaluated_at >= c.updated_at
+          and m.last_evaluated_at >= coalesce((select updated_at from user_profiles where user_id = c.user_id), '-infinity'::timestamptz)
           and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key = 'app'), '-infinity'::timestamptz)) as best_score,
       (select max(created_at) from notifications n where n.criterion_id = c.id) as last_notified
-    from search_criteria c`);
+    from search_criteria c where c.user_id = ${userId}`);
   return new Map(res.rows.map((r) => [r.criterion_id, r]));
 }
 
@@ -448,8 +486,11 @@ export type FlashSort = "discount" | "price" | "drop" | "new";
 
 /** Promotion pages that were crawled at least once, with their last successful crawl. */
 export async function flashPages() {
+  const userId = (await requireUser()).id;
   const rows = await db().execute<{ path: string; last_success_at: Date; item_count: number; method: string | null }>(sql`
-    select path, last_success_at, item_count, method from listing_crawls order by path`);
+    select lc.path, lc.last_success_at, lc.item_count, lc.method from listing_crawls lc
+    where lc.shop_id = 'marjane-mall' and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=lc.shop_id and s.active)
+    order by lc.path`);
   return rows.rows.map((r) => ({ ...r, last_success_at: new Date(r.last_success_at) }));
 }
 
@@ -458,8 +499,9 @@ export async function flashPages() {
  * successful crawl of that page (a 1-hour margin covers long runs).
  */
 export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: string; scope?: 'profile' | 'all' } = {}): Promise<FlashRow[]> {
+  const userId = (await requireUser()).id;
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
-  const settings = await getAppSettings(db());
+  const settings = await getUserSettings(db(), userId);
   const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const order =
     opts.sort === "price"
@@ -477,11 +519,12 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
            coalesce((
              select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
              from deal_matches m join search_criteria c on c.id = m.criterion_id
-             where m.offer_id = o.id and m.is_match and c.enabled and m.last_evaluated_at >= c.updated_at
+             where m.offer_id = o.id and m.is_match and c.enabled and c.user_id = ${userId} and m.last_evaluated_at >= c.updated_at
+               and m.last_evaluated_at >= coalesce((select updated_at from user_profiles where user_id = c.user_id), '-infinity'::timestamptz)
                and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key='app'), '-infinity'::timestamptz)
            ), '[]'::json) as matches
     from listing_appearances a
-    join listing_crawls lc on lc.path = a.listing_path
+    join listing_crawls lc on lc.path = a.listing_path and lc.shop_id = 'marjane-mall'
     join product_offers o on o.id = a.offer_id
     join products p on p.id = o.product_id
     left join lateral (
@@ -489,7 +532,8 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
       where ph.offer_id = o.id
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
-    where a.listing_path = ${path}
+    where a.listing_path = ${path} and o.shop_id = 'marjane-mall'
+      and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
       and o.last_success_at >= ${freshSince}
       and a.last_seen_at >= lc.last_success_at - interval '1 hour'
       and o.status = 'active'
@@ -507,12 +551,13 @@ export async function weeklyOffers(
   paths: string[],
   opts: { sort?: FlashSort; q?: string; requireDeal?: boolean; limit?: number; includeCampaigns?: boolean; scope?: 'profile' | 'all' } = {},
 ): Promise<FlashRow[]> {
+  const userId = (await requireUser()).id;
   if (opts.includeCampaigns) {
     const campaigns = await flashPages();
     paths=[...new Set([...paths,...campaigns.filter(c=>+c.last_success_at>Date.now()-86400_000 && /^\/(panier-malin|trouvailles-marjane-mall|les-deals-|tout-a-moins-de-)/.test(c.path)).map(c=>c.path)])];
   }
   if (paths.length === 0) return [];
-  const settings = await getAppSettings(db());
+  const settings = await getUserSettings(db(), userId);
   const freshSince = new Date(Date.now() - settings.staleAfterHours * 3600_000);
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null;
   // Promo aggregation ("Cette semaine") keeps only real deals; a clearance hub
@@ -535,7 +580,8 @@ export async function weeklyOffers(
            coalesce((
              select json_agg(json_build_object('id', c.id, 'name', c.name, 'score', m.score) order by m.score desc)
              from deal_matches m join search_criteria c on c.id = m.criterion_id
-             where m.offer_id = o.id and m.is_match and c.enabled and m.last_evaluated_at >= c.updated_at
+             where m.offer_id = o.id and m.is_match and c.enabled and c.user_id = ${userId} and m.last_evaluated_at >= c.updated_at
+               and m.last_evaluated_at >= coalesce((select updated_at from user_profiles where user_id = c.user_id), '-infinity'::timestamptz)
                and m.last_evaluated_at >= coalesce((select updated_at from application_settings where key='app'), '-infinity'::timestamptz)
            ), '[]'::json) as matches
     from (
@@ -552,7 +598,8 @@ export async function weeklyOffers(
       where ph.offer_id = o.id
       order by ph.observed_at desc, ph.id desc offset 1 limit 1
     ) prev on true
-    where o.status = 'active'
+    where o.status = 'active' and o.shop_id = 'marjane-mall'
+      and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
       and o.last_success_at >= ${freshSince}
       ${requireDeal ? sql`and (o.advertised_discount_pct >= 20 or (prev.price_cents > o.current_price_cents))` : sql``}
       ${q ? sql`and (o.title ilike ${q} or p.brand ilike ${q})` : sql``}
@@ -564,14 +611,16 @@ export async function weeklyOffers(
 
 /** Fresh observed eligibility only; no inference from a discount badge. */
 export async function basketCandidates() {
-  const settings = await getAppSettings(db());
+  const userId = (await requireUser()).id;
+  const settings = await getUserSettings(db(), userId);
   const rows = await db().execute<{id:string;title:string;price_cents:number;brand:string|null;raw_specs:Record<string,string>;category_path:string|null;eligible:boolean}>(sql`
     select o.id,o.title,o.current_price_cents as price_cents,p.brand,p.raw_specs,p.category_path,
       exists(select 1 from listing_appearances a where a.offer_id=o.id
         and (a.listing_path='/panier-malin' or a.listing_path like '/panier-malin/%')
         and a.last_seen_at >= now()-interval '24 hours') as eligible
     from product_offers o join products p on p.id=o.product_id
-    where o.status='active' and o.stock_status <> 'out_of_stock' and o.current_price_cents>0
+    where o.status='active' and o.shop_id='marjane-mall' and o.stock_status <> 'out_of_stock' and o.current_price_cents>0
+      and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
       and o.last_success_at >= ${new Date(Date.now()-settings.staleAfterHours*3600_000)}
     order by eligible desc,o.current_price_cents asc,o.id limit 1000`);
   return rows.rows.filter(r=>fitsPromotionProfile({title:r.title,brand:r.brand,rawSpecs:r.raw_specs,categoryPath:r.category_path},settings.shopperProfile)).slice(0,100)
@@ -581,11 +630,13 @@ export async function basketCandidates() {
 /** Candidate comparison only: matching a model name does not prove identical variants or bundles. */
 export async function similarModelOffers(offerId:string, modelRef:string|null, brand:string|null) {
   if (!modelRef || modelRef.replace(/[^a-z0-9]/gi,'').length<4 || !brand) return [];
+  const userId = (await requireUser()).id;
   const brands = /^(anker|soundcore)$/i.test(brand.trim()) ? ['anker','soundcore'] : [brand.toLowerCase().trim()];
   const settings=await getAppSettings(db());
   const rows=await db().execute<{id:string;title:string;price_cents:number;seller:string|null}>(sql`
     select o.id,o.title,o.current_price_cents as price_cents,o.seller from product_offers o join products p on p.id=o.product_id
     where o.id <> ${offerId} and o.status='active' and o.stock_status <> 'out_of_stock'
+      and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
       and o.current_price_cents>0 and o.last_success_at >= ${new Date(Date.now()-settings.staleAfterHours*3600_000)}
       and lower(trim(p.brand)) in (${sql.join(brands.map(b=>sql`${b}`),sql`,`)})
       and regexp_replace(lower(p.model_ref),'[^a-z0-9]','','g') = ${modelRef.toLowerCase().replace(/[^a-z0-9]/g,'')}

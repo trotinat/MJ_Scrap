@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Copy, Pencil, Plus, Search, Sparkles } from "lucide-react";
-import { getAppSettings, getDb, listCriteria } from "@mdw/database";
+import { getDb, getUserProfile, listCriteria } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { profileIsEmpty, RECOMMENDED_CRITERIA } from "@mdw/shared";
 import { formatMad, madToCents, NOTIFY_MODE_LABELS } from "@mdw/shared";
 import { Badge, btn, EmptyState, PageHeader } from "@/components/ui";
@@ -14,8 +15,9 @@ import { QuickAddFromUrl } from "./quick-add";
 export const metadata = { title: "Mes recherches" };
 
 export default async function CriteriaPage() {
-  const [criteria, summaries, settings] = await Promise.all([listCriteria(getDb()), criteriaSummaries(), getAppSettings(getDb())]);
-  const hasProfile = !profileIsEmpty(settings.shopperProfile);
+  const user = await requireUser();
+  const [criteria, summaries, profile] = await Promise.all([listCriteria(getDb(), { userId: user.id }), criteriaSummaries(), getUserProfile(getDb(), user.id)]);
+  const hasProfile = !profileIsEmpty(profile);
   const names = new Set(criteria.map((c) => c.name.trim().toLowerCase()));
   const missingPresets = RECOMMENDED_CRITERIA.filter((c) => !names.has(c.name.trim().toLowerCase()));
   return (
@@ -116,7 +118,7 @@ export default async function CriteriaPage() {
                   </form>
                   <form action={deleteCriterionAction}>
                     <input type="hidden" name="id" value={c.id} />
-                    <DeleteButton message={`Supprimer « ${c.name} » et toutes les offres qu'elle a trouvées ? Cette action est définitive.`} />
+                    <DeleteButton message={`Supprimer définitivement la recherche « ${c.name} » et ses résultats personnels ?`} />
                   </form>
                 </div>
               </div>

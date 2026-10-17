@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, BellRing, CheckCheck, Search, ShieldCheck, TrendingDown, Zap, Radar } from "lucide-react";
-import { getAppSettings, getDb, listCriteria } from "@mdw/database";
+import { getDb, getUserSettings, listCriteria } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { profileHighlights, type DealClass, type ShopperProfile } from "@mdw/shared";
 import { telegramStatus } from "@/lib/telegram-status";
 import { CheckNowButton } from "@/components/check-now-button";
@@ -58,9 +59,10 @@ function when(d: Date): string {
 
 
 export default async function HomePage() {
-  const settings = await getAppSettings(getDb());
+  const user = await requireUser();
+  const settings = await getUserSettings(getDb(), user.id);
   const [s, deals, criteria, summaries, telegram, flash, week] = await Promise.all([
-    dashboardStats(), listDeals({ sort: "score", pageSize: 160 }), listCriteria(getDb()), criteriaSummaries(), telegramStatus(),
+    dashboardStats(), listDeals({ sort: "score", pageSize: 160 }), listCriteria(getDb(), { userId: user.id }), criteriaSummaries(), telegramStatus(),
     flashOffers("/ventes-flash", { sort: "discount" }).catch(() => []),
     weeklyOffers(settings.dealPagePaths,{includeCampaigns:true}).catch(() => []),
   ]);

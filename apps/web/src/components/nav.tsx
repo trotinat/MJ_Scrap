@@ -58,8 +58,8 @@ export function Nav({ email, logout }: { email: string; logout: (() => Promise<v
         <Radar className="h-5 w-5" aria-hidden />
       </span>
       <span className={cx("font-display text-xl font-extrabold leading-none tracking-tight", dark ? "text-white" : "text-ink")}>
-        BON<span className="text-brand-600">.</span>
-        <span className={cx("mt-1 block font-sans text-[10px] font-bold uppercase tracking-[.18em]", dark ? "text-white/55" : "text-ink-mute")}>Marjane Mall</span>
+        Hawta<span className="text-brand-600">.</span>
+        <span className={cx("mt-1 block font-sans text-[10px] font-bold uppercase tracking-[.18em]", dark ? "text-white/55" : "text-ink-mute")}>Les bons plans du Maroc</span>
       </span>
     </Link>
   );

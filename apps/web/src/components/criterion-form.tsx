@@ -91,11 +91,13 @@ export function CriterionForm({
   action,
   submitLabel,
   previewBeforeSave = false,
+  shops = [],
 }: {
   initial: Draft;
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   submitLabel: string;
   previewBeforeSave?: boolean;
+  shops?: { id: string; name: string }[];
 }) {
   const [d, setD] = useState<Draft>(initial);
   const [state, formAction] = useActionState(action, {});
@@ -104,14 +106,15 @@ export function CriterionForm({
   useEffect(() => () => abortRef.current?.abort(), []);
   const suggestedName = d.filters.keywords[0] || d.filters.altKeywords[0] || d.filters.categoryPaths[0]?.split("?")[0]?.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") || "Ma recherche";
   const payload = JSON.stringify({ ...d, name: d.name.trim() || (previewBeforeSave ? suggestedName.slice(0, 120) : d.name) });
-  const filterSignature = JSON.stringify(d.filters);
+  const filterSignature = JSON.stringify([d.shopId, d.filters]);
+  const selectedShop = shops.find(shop => shop.id === d.shopId)?.name ?? "la boutique";
   const isCurrentPreview = preview.phase === "done" && preview.testedPayload === filterSignature;
   const hasSearchScope = d.filters.categoryPaths.length > 0 || d.filters.keywords.length > 0 || d.filters.altKeywords.length > 0 || Boolean(d.filters.modelRef);
   async function testSearch() {
     abortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
-    setPreview({ phase: "running", items: [], rejected: 0, examples: [], checked: 0, found: 0, errors: 0, message: "Connexion à Marjane Mall…", testedPayload: filterSignature });
+    setPreview({ phase: "running", items: [], rejected: 0, examples: [], checked: 0, found: 0, errors: 0, message: `Connexion à ${selectedShop}…`, testedPayload: filterSignature });
     try {
       const response = await fetch("/api/criteres/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, signal: abort.signal });
       if (!response.ok) {
@@ -162,6 +165,11 @@ export function CriterionForm({
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="payload" value={payload} />
+      <label className="block text-sm font-semibold text-ink">Boutique
+        <select className={`${input} mt-2`} value={d.shopId} onChange={e => setD({ ...d, shopId: e.target.value, filters: { ...d.filters, categoryPaths: [] } })}>
+          {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+        </select>
+      </label>
       {state.message && <div className="rounded-lg border border-promo/30 bg-promo-soft px-4 py-3 text-sm text-promo">{state.message}</div>}
 
       {previewBeforeSave && <Card title="1. Que cherchez-vous ?">
@@ -171,8 +179,8 @@ export function CriterionForm({
           </Field>
           <div>
             <p className="mb-1 text-sm font-medium text-ink">Rayons à surveiller</p>
-            <p className="mb-2 text-xs text-ink-mute">Facultatif. Sans rayon, nous cherchons dans les promotions.</p>
-            <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+            <p className="mb-2 text-xs text-ink-mute">Facultatif. Les rayons dépendent de la boutique choisie.</p>
+            {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Prix maximum (MAD)" htmlFor="quick-max-price"><input id="quick-max-price" className={input} inputMode="decimal" {...money("maxPrice")} /></Field>
@@ -212,7 +220,7 @@ export function CriterionForm({
           <div className="sm:col-span-2">
             <p className="mb-1 block text-sm font-medium text-ink">Rayons à surveiller</p>
             <p className="mb-2 text-xs text-ink-mute">Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche parcourt les pages promos configurées.</p>
-            <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+            {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
             {e["filters.categoryPaths"] && <p className="mt-1 text-xs text-promo">{e["filters.categoryPaths"]}</p>}
             <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
               <summary className="cursor-pointer text-xs font-medium text-ink-soft">Coller une URL ou un chemin exact (filtres pointure, genre…)</summary>

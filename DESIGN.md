@@ -1,4 +1,4 @@
-# BON. · Deal radar
+# Hawta · Bons plans du Maroc
 
 Design reference: [awesome-design-md](https://github.com/voltagent/awesome-design-md), particularly its [Airbnb marketplace analysis](https://github.com/voltagent/awesome-design-md/blob/main/design-md/airbnb/DESIGN.md).
 Use its marketplace clarity as inspiration, adapted to our own identity.

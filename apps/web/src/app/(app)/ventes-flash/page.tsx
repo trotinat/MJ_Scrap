@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PromotionScope } from "@/components/promotion-scope";
 import { Zap } from "lucide-react";
-import { getAppSettings, getDb } from "@mdw/database";
+import { getDb, getUserSettings } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { profileHighlights } from "@mdw/shared";
 import { CheckNowButton } from "@/components/check-now-button";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
@@ -31,8 +32,9 @@ const SORTS: { value: FlashSort; label: string }[] = [
 ];
 
 export default async function VentesFlashPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const user = await requireUser();
   const sp = await searchParams;
-  const [crawled, settings] = await Promise.all([flashPages(), getAppSettings(getDb())]);
+  const [crawled, settings] = await Promise.all([flashPages(), getUserSettings(getDb(), user.id)]);
   // Configured promotion pages first, then any other crawled page (e.g. one used by a criterion).
   const tabs = [WEEK, ...new Set([...settings.dealPagePaths, ...crawled.filter((c) => PAGE_LABELS[c.path] || (+c.last_success_at>Date.now()-86400_000 && /^\/(panier-malin|trouvailles-marjane-mall|les-deals-|tout-a-moins-de-)/.test(c.path))).map((c) => c.path)])];
   const current = sp.page && tabs.includes(sp.page) ? sp.page : WEEK;

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Copy, Pencil, Search, Trash2 } from "lucide-react";
 import { z } from "zod";
-import { getAppSettings, getCriterion, getDb } from "@mdw/database";
+import { getUserSettings, getCriterion, getDb } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { madToCents, NOTIFY_MODE_LABELS, specAttribute, SPEC_OPERATOR_LABELS, type SpecRule } from "@mdw/shared";
 import { Badge, btn, Card, EmptyState, FreshnessBadge, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
 import { ConfirmSubmit, SubmitButton } from "@/components/buttons";
@@ -41,9 +42,10 @@ export default async function CriterionDetailPage({ params, searchParams }: { pa
   const { id } = await params;
   const justAdded = (await searchParams).ajout === "1";
   if (!z.string().uuid().safeParse(id).success) notFound();
-  const c = await getCriterion(getDb(), id);
+  const user = await requireUser();
+  const c = await getCriterion(getDb(), id, user.id);
   if (!c) notFound();
-  const [matches, notifs, settings] = await Promise.all([criterionMatches(id), listNotifications(undefined, id, 20), getAppSettings(getDb())]);
+  const [matches, notifs, settings] = await Promise.all([criterionMatches(id), listNotifications(undefined, id, 20), getUserSettings(getDb(), user.id)]);
   const f = c.filters;
   const mad = (v: number | null) => (v === null ? "—" : formatMad(madToCents(v)));
 

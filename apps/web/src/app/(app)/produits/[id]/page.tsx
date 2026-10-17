@@ -3,7 +3,8 @@ import { DeliveredPrice } from "@/components/delivered-price";
 import { notFound } from "next/navigation";
 import { RetailerLink } from "@/components/retailer-link";
 import { z } from "zod";
-import { getAppSettings, getDb } from "@mdw/database";
+import { getDb, getUserSettings } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { priceStats, historyFacts } from "@mdw/scoring";
 import { describeSpec, type NormalizedSpecs } from "@mdw/shared";
 import { Badge, btn, Card, FreshnessBadge, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
@@ -15,11 +16,13 @@ import { formatMad, formatMoroccoTime, formatPct, STOCK_LABELS } from "@/lib/for
 export const metadata = { title: "Détail du produit" };
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
-  const [data, settings] = await Promise.all([offerDetail(id), getAppSettings(getDb())]);
+  const [data, settings] = await Promise.all([offerDetail(id), getUserSettings(getDb(), user.id)]);
   if (!data) notFound();
   const { offer, product, history, matches, siblings } = data;
+  const shopName = offer.shopId === "marjane-mall" ? "Marjane Mall" : new URL(offer.url).hostname.replace(/^www\./, "");
   const stats = priceStats(history.map((h) => ({ priceCents: h.priceCents, observedAt: h.observedAt })));
   const baseline = historyFacts(history.map(h=>({priceCents:h.priceCents,observedAt:h.observedAt})));
   const points = history.map((h) => ({ t: h.observedAt.getTime(), price: h.priceCents / 100, original: h.originalPriceCents ? h.originalPriceCents / 100 : null }));
@@ -37,7 +40,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         description={`${product.brand ?? "Marque inconnue"}${product.modelRef ? ` · Réf. ${product.modelRef}` : ""}${offer.seller ? ` · Vendu par ${offer.seller}` : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <RetailerLink url={offer.url} className={btn.primary} label="Voir sur Marjane Mall" />
+            <RetailerLink url={offer.url} className={btn.primary} label={`Voir sur ${shopName}`} />
             <ShareButton url={offer.url} title={offer.title} />
           </div>
         }
@@ -57,7 +60,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <FreshnessBadge at={offer.lastSuccessAt} staleAfterHours={settings.staleAfterHours} />
               {offer.status !== "active" && <Badge tone="red">{offer.status === "missing" ? "Plus listé sur le site" : "Page indisponible"}</Badge>}
             </div>
-            <DeliveredPrice priceCents={offer.currentPriceCents ?? 0} observedShipping={product.rawSpecs?.['Livraison affichée (adresse à confirmer)']} />
+            {offer.shopId === "marjane-mall" && <DeliveredPrice priceCents={offer.currentPriceCents ?? 0} observedShipping={product.rawSpecs?.['Livraison affichée (adresse à confirmer)']} />}
             {product.rawSpecs?.['Attention données source'] && <p className="rounded-lg bg-tag-soft p-3 text-xs">{product.rawSpecs['Attention données source']}</p>}
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>

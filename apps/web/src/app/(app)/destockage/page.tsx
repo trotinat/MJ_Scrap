@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PromotionScope } from "@/components/promotion-scope";
 import { Sparkles, Tag } from "lucide-react";
-import { getAppSettings, getDb } from "@mdw/database";
+import { getDb, getUserSettings } from "@mdw/database";
+import { requireUser } from "@/lib/session";
 import { DESTOCKAGE_PATHS, profileHighlights, profileIsEmpty, suitsProfile, type ShopperProfile } from "@mdw/shared";
 import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
@@ -43,8 +44,9 @@ function toCard(r: FlashRow, profile: ShopperProfile): DealCardData {
 }
 
 export default async function DestockagePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const user = await requireUser();
   const sp = await searchParams;
-  const [settings, crawled] = await Promise.all([getAppSettings(getDb()), flashPages()]);
+  const [settings, crawled] = await Promise.all([getUserSettings(getDb(), user.id), flashPages()]);
   const profile = settings.shopperProfile;
   const hasProfile = !profileIsEmpty(profile);
 

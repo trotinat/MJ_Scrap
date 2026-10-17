@@ -31,6 +31,9 @@ export type DetailResult =
 
 /** Interface used by the worker, so tests can inject a fake site. */
 export interface SiteAdapter {
+  /** Stable boutique id; older injected test adapters default to Marjane. */
+  readonly shopId?: string;
+  readonly dealPagePaths?: string[];
   discover(path: string, maxPages: number): Promise<ListingResult>;
   fetchProduct(url: string): Promise<DetailResult>;
   discoverCampaigns?(): Promise<string[]>;
@@ -43,6 +46,7 @@ export interface SiteAdapter {
  * Playwright only for client-rendered listings.
  */
 export class MarjaneAdapter implements SiteAdapter {
+  readonly shopId = "marjane-mall";
   private readonly fetcher: PoliteFetcher;
   private renderer: ListingRenderer | null = null;
   private renderDisabled = false;

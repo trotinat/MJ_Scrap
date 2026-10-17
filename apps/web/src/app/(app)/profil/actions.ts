@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAppSettings, getDb, saveAppSettings, runRequests } from "@mdw/database";
+import { getDb, saveUserProfile, runRequests } from "@mdw/database";
 import { eq } from 'drizzle-orm';
 import { shopperProfileSchema } from "@mdw/shared";
 import { requireUser } from "@/lib/session";
@@ -23,8 +23,7 @@ export async function saveProfileAction(_prev: ProfileState, fd: FormData): Prom
   const parsed = shopperProfileSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Valeurs invalides." };
   const db = getDb();
-  const current = await getAppSettings(db);
-  await saveAppSettings(db, { ...current, shopperProfile: parsed.data });
+  await saveUserProfile(db, user.id, parsed.data);
   const pending = await db.select({id:runRequests.id}).from(runRequests).where(eq(runRequests.status,'pending')).limit(1);
   if (!pending.length) await db.insert(runRequests).values({requestedBy:user.email});
   revalidatePath("/", "layout");

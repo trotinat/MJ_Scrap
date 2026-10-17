@@ -22,7 +22,7 @@ export default async function LoginPage() {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white">
             <Activity className="h-5 w-5" aria-hidden />
           </span>
-          <h1 className="text-lg font-semibold">Marjane Deals Watcher</h1>
+          <h1 className="text-lg font-semibold">Hawta</h1>
         </div>
         <div className="rounded-2xl border border-paper-line bg-paper-card p-6">
           {users === 0 ? (

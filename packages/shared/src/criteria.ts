@@ -118,6 +118,7 @@ export const criterionFiltersSchema = z
 export type CriterionFilters = z.infer<typeof criterionFiltersSchema>;
 
 export const criterionInputSchema = z.object({
+  shopId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).default("marjane-mall"),
   name: z.string().trim().min(1, "Nom requis").max(120),
   description: z.string().trim().max(1000).default(""),
   enabled: z.boolean().default(true),
@@ -132,6 +133,7 @@ export type CriterionInputRaw = z.input<typeof criterionInputSchema>;
 /** A criterion as consumed by the matching engine. */
 export interface Criterion extends CriterionInput {
   id: string;
+  ownerId?: string;
 }
 
 /** Demonstration criteria (seeded disabled-by-default on demand, never hardcoded rules). */

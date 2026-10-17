@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { asc, count, eq } from "drizzle-orm";
 import {
   createCriterion,
+  createUser,
   createDb,
   dealMatches,
   listCriteria,
@@ -15,6 +16,7 @@ import {
   saveAppSettings,
   scrapingRuns,
   searchCriteria,
+  shops,
   seedRecommendedCriteria,
   type DbHandle,
 } from "@mdw/database";
@@ -22,6 +24,7 @@ import { AccessBlockedError, type DetailResult, type ListingResult, type SiteAda
 import { DEFAULT_SETTINGS, EXAMPLE_CRITERIA, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { TelegramClient } from "@mdw/notifications";
 import { runScrape, type PipelineDeps } from "../src/pipeline";
+import { saveObservation, type OfferObservation } from "../src/persist";
 import { Scheduler } from "../src/scheduler";
 import { markInterruptedRuns } from "../src/deps";
 import { createLogger } from "../src/logger";
@@ -153,12 +156,13 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
   });
   beforeEach(async () => {
     await truncateAll(h);
+    const owner = await createUser(h.db, "owner@example.com", "un-mot-de-passe-solide");
     clock = new Date();
     site = new FakeSite();
     tg = fakeTelegram();
     await saveAppSettings(h.db, { ...DEFAULT_SETTINGS, dealPagePaths: ["/ventes-flash"], missingAfterRuns: 2 });
-    await createCriterion(h.db, { ...EXAMPLE_CRITERIA[0]!, enabled: true });
-    await createCriterion(h.db, { ...EXAMPLE_CRITERIA[1]!, enabled: true });
+    await createCriterion(h.db, { ...EXAMPLE_CRITERIA[0]!, enabled: true }, owner.id);
+    await createCriterion(h.db, { ...EXAMPLE_CRITERIA[1]!, enabled: true }, owner.id);
     site.put({
       sourceId: "abbb332004180907425",
       title: "Téléviseur Samsung QLED 55 pouces – Modèle QA55Q6FAAUXMV",
@@ -172,6 +176,20 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     site.put({ sourceId: "aaab50inch01", title: "Téléviseur TCL 50 pouces 4K Smart TV", brand: "TCL", priceCents: 429900, path: TV_PATH });
     site.put({ sourceId: "aaac0laptop1", title: "PC Portable Lenovo IdeaPad 16 Go RAM 512 Go SSD", brand: "Lenovo", priceCents: 799900, path: LAPTOP_PATH });
     site.put({ sourceId: "aaad0blender", title: "Blender Denwa BL424CB 1,5 L", priceCents: 23900, path: "/ventes-flash" });
+  });
+
+  it("separates identical external ids and product keys across shops", async () => {
+    await h.db.insert(shops).values({ id: "nike-ma", name: "Nike Maroc", baseUrl: "https://www.nike.com/ma", active: true });
+    const [run] = await h.db.insert(scrapingRuns).values({ trigger: "manual", status: "running" }).returning();
+    const base: OfferObservation = {
+      sourceId: "same-id", url: "https://www.marjanemall.ma/p/same-id", title: "Nike Air Test", brand: "Nike", modelRef: "AIR-TEST", imageUrl: null,
+      priceCents: 30000, originalPriceCents: null, advertisedDiscountPct: null, seller: null, stock: "in_stock", rating: null, reviewCount: null,
+      rawSpecs: {}, categoryPath: null, listingPath: null, source: "detail", extraction: "structured-data",
+    };
+    const a = await h.db.transaction(tx => saveObservation(tx, { ...base, shopId: "marjane-mall" }, run!.id, clock));
+    const b = await h.db.transaction(tx => saveObservation(tx, { ...base, shopId: "nike-ma", url: "https://www.nike.com/ma/t/same-id" }, run!.id, clock));
+    expect(a.offerId).not.toBe(b.offerId);
+    expect(a.productId).not.toBe(b.productId);
   });
 
   it("reuses unchanged recent details but refreshes changed prices and expired stock", async()=>{

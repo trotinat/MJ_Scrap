@@ -8,12 +8,13 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { AppSettings, CriterionFilters, NormalizedSpecs, NotifyMode } from "@mdw/shared";
+import type { AppSettings, CriterionFilters, NormalizedSpecs, NotifyMode, ShopperProfile } from "@mdw/shared";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const createdAt = () => ts("created_at").notNull().defaultNow();
@@ -48,12 +49,35 @@ export const loginAttempts = pgTable("login_attempts", {
   attemptedAt: ts("attempted_at").notNull().defaultNow(),
 }, (t) => [index("login_attempts_ip_time_idx").on(t.ip, t.attemptedAt)]);
 
+export const userProfiles = pgTable("user_profiles", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  profile: jsonb("profile").$type<ShopperProfile>().notNull().default({} as ShopperProfile),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+export const shops = pgTable("shops", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull(),
+  active: boolean("active").notNull().default(false),
+  createdAt: createdAt(),
+});
+
+/** SaaS entitlement: only assigned shops are available to an account. */
+export const userShops = pgTable("user_shops", {
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  shopId: text("shop_id").notNull().references(() => shops.id),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.userId, t.shopId] }), index("user_shops_shop_idx").on(t.shopId)]);
+
 /* ----------------------------------------------------------------------------
  * Search criteria
  * ------------------------------------------------------------------------- */
 
 export const searchCriteria = pgTable("search_criteria", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  shopId: text("shop_id").notNull().default("marjane-mall").references(() => shops.id),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   enabled: boolean("enabled").notNull().default(true),
@@ -70,7 +94,7 @@ export const searchCriteria = pgTable("search_criteria", {
   filters: jsonb("filters").$type<CriterionFilters>().notNull(),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
-}, (t) => [index("search_criteria_enabled_idx").on(t.enabled)]);
+}, (t) => [index("search_criteria_enabled_idx").on(t.enabled), index("search_criteria_user_idx").on(t.userId), index("search_criteria_shop_idx").on(t.shopId)]);
 
 export type CriterionOrigin = "user" | "recommended";
 
@@ -84,6 +108,7 @@ export type CriterionOrigin = "user" | "recommended";
  */
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
+  shopId: text("shop_id").notNull().default("marjane-mall").references(() => shops.id),
   /** "ref:<BRAND>:<MODELREF>" when a reference is known, else "src:<sourceId>". */
   canonicalKey: text("canonical_key").notNull(),
   name: text("name").notNull(),
@@ -98,7 +123,7 @@ export const products = pgTable("products", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("products_canonical_key_uq").on(t.canonicalKey),
+  uniqueIndex("products_shop_key_uq").on(t.shopId, t.canonicalKey),
   index("products_model_ref_idx").on(t.modelRef),
   index("products_brand_idx").on(t.brand),
   index("products_category_idx").on(t.categoryPath),
@@ -108,6 +133,7 @@ export type OfferStatus = "active" | "unavailable" | "missing";
 
 export const productOffers = pgTable("product_offers", {
   id: uuid("id").primaryKey().defaultRandom(),
+  shopId: text("shop_id").notNull().default("marjane-mall").references(() => shops.id),
   productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   /** Identifier from the product URL (/p/<slug>-<sourceId>). */
   sourceId: text("source_id").notNull(),
@@ -132,7 +158,7 @@ export const productOffers = pgTable("product_offers", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("product_offers_source_id_uq").on(t.sourceId),
+  uniqueIndex("product_offers_shop_source_uq").on(t.shopId, t.sourceId),
   index("product_offers_url_idx").on(t.url),
   index("product_offers_product_idx").on(t.productId),
   index("product_offers_price_idx").on(t.currentPriceCents),
@@ -173,11 +199,12 @@ export const listingAppearances = pgTable("listing_appearances", {
 
 /** Last successful crawl of each listing page. */
 export const listingCrawls = pgTable("listing_crawls", {
-  path: text("path").primaryKey(),
+  shopId: text("shop_id").notNull().default("marjane-mall").references(() => shops.id),
+  path: text("path").notNull(),
   lastSuccessAt: ts("last_success_at").notNull(),
   itemCount: integer("item_count").notNull().default(0),
   method: text("method"),
-});
+}, (t) => [primaryKey({ columns: [t.shopId, t.path] })]);
 
 /* ----------------------------------------------------------------------------
  * Scraping runs
@@ -207,6 +234,7 @@ export interface RunStats {
 
 export const scrapingRuns = pgTable("scraping_runs", {
   id: uuid("id").primaryKey().defaultRandom(),
+  shopId: text("shop_id").notNull().default("marjane-mall").references(() => shops.id),
   trigger: text("trigger").$type<RunTrigger>().notNull(),
   status: text("status").$type<RunStatus>().notNull().default("running"),
   scheduledFor: ts("scheduled_for"),

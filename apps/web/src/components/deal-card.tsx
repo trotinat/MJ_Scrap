@@ -9,6 +9,7 @@ import { formatMad } from "@/lib/format";
 
 export interface DealCardData {
   offerId: string;
+  shopName?: string;
   title: string;
   url: string;
   imageUrl: string | null;
@@ -50,6 +51,8 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
   const big = size === "lg";
   const gallery = deriveGallery(d.imageUrl, 2);
   const profileTags = (d.highlights ?? []).filter((h) => h.tone === "profile");
+  const host = new URL(d.url).hostname.replace(/^www\./, "");
+  const source = d.shopName ?? (host === "marjanemall.ma" ? "Marjane Mall" : host);
   return (
     <article
       className={cx(
@@ -84,6 +87,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
       </Link>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-5 sm:p-6" : "p-3.5")}>
+        <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100

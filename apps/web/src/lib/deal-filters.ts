@@ -8,6 +8,7 @@ const optNum = z
   .refine((v) => v === undefined || Number.isFinite(v), "nombre invalide");
 
 const schema = z.object({
+  shopId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).optional().catch(undefined),
   criterionId: z.string().uuid().optional().catch(undefined),
   category: z.string().max(200).regex(/^\/[a-z0-9\-/]*$/i).optional().catch(undefined),
   brand: z.string().max(80).optional().catch(undefined),

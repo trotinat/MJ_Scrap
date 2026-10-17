@@ -9,11 +9,12 @@ import {
   createCriterion,
   deleteCriterion,
   duplicateCriterion,
-  getAppSettings,
+  getUserProfile,
   getDb,
   runRequests,
   setCriterionEnabled,
   updateCriterion,
+  requireUserShop,
 } from "@mdw/database";
 import { buildProfilePaths, criterionInputSchema, EXAMPLE_CRITERIA, profileToFilterPatch, sitePathSchema } from "@mdw/shared";
 import type { FormState } from "@/components/criterion-form";
@@ -43,7 +44,9 @@ export async function createCriterionAction(_prev: FormState, formData: FormData
   const p = parsePayload(formData);
   if (!p.ok) return p.state;
   const db = getDb();
-  const c = await createCriterion(db, p.data);
+  try { await requireUserShop(db, user.id, p.data.shopId); }
+  catch { return { message: "Boutique indisponible pour votre compte." }; }
+  const c = await createCriterion(db, p.data, user.id);
   if (p.data.enabled) {
     const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
     if (!pending.length) await db.insert(runRequests).values({ requestedBy: user.email });
@@ -54,36 +57,38 @@ export async function createCriterionAction(_prev: FormState, formData: FormData
 }
 
 export async function updateCriterionAction(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   if (!uuid.safeParse(id).success) return { message: "Identifiant invalide." };
   const p = parsePayload(formData);
   if (!p.ok) return p.state;
-  const c = await updateCriterion(getDb(), id, p.data);
+  try { await requireUserShop(getDb(), user.id, p.data.shopId); }
+  catch { return { message: "Boutique indisponible pour votre compte." }; }
+  const c = await updateCriterion(getDb(), id, p.data, user.id);
   if (!c) return { message: "Critère introuvable." };
   revalidatePath("/criteres");
   redirect(`/criteres/${id}`);
 }
 
 export async function toggleCriterionAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const id = uuid.parse(formData.get("id"));
-  await setCriterionEnabled(getDb(), id, formData.get("enabled") === "true");
+  await setCriterionEnabled(getDb(), id, formData.get("enabled") === "true", user.id);
   revalidatePath("/criteres");
   revalidatePath(`/criteres/${id}`);
 }
 
 export async function duplicateCriterionAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const id = uuid.parse(formData.get("id"));
-  const copy = await duplicateCriterion(getDb(), id);
+  const copy = await duplicateCriterion(getDb(), id, user.id);
   revalidatePath("/criteres");
   if (copy) redirect(`/criteres/${copy.id}/modifier`);
 }
 
 export async function deleteCriterionAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const id = uuid.parse(formData.get("id"));
-  await deleteCriterion(getDb(), id);
+  await deleteCriterion(getDb(), id, user.id);
   revalidatePath("/", "layout");
   redirect("/criteres");
 }
@@ -107,6 +112,8 @@ function titleCase(slug: string): string {
 export async function quickAddFromUrlAction(_prev: QuickAddState, formData: FormData): Promise<QuickAddState> {
   const user = await requireUser();
   const parsed = sitePathSchema.safeParse(String(formData.get("url") ?? ""));
+  try { await requireUserShop(getDb(), user.id, "marjane-mall"); }
+  catch { return { error: "Marjane Mall est indisponible pour votre compte." }; }
   if (!parsed.success) return { error: "Collez une adresse de page Marjane Mall (https://www.marjanemall.ma/…)." };
   const path = parsed.data;
   const pathname = path.split("?")[0]!;
@@ -124,7 +131,7 @@ export async function quickAddFromUrlAction(_prev: QuickAddState, formData: Form
     notifyMode: "all",
     notifyMinScore: 50,
     filters: { categoryPaths: [path], includedBrands: brand ? [brand] : [] },
-  });
+  }, user.id);
   const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
   if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
   revalidatePath("/criteres");
@@ -145,6 +152,8 @@ const quickCategoriesSchema = z.object({
  */
 export async function quickAddFromCategoriesAction(_prev: QuickAddState, formData: FormData): Promise<QuickAddState> {
   const user = await requireUser();
+  try { await requireUserShop(getDb(), user.id, "marjane-mall"); }
+  catch { return { error: "Marjane Mall est indisponible pour votre compte." }; }
   let raw: unknown;
   try {
     raw = JSON.parse(String(formData.get("payload") ?? "{}"));
@@ -163,7 +172,7 @@ export async function quickAddFromCategoriesAction(_prev: QuickAddState, formDat
   let paths = parsed.data.paths;
   let profilePatch = {};
   if (parsed.data.useProfile) {
-    const { shopperProfile } = await getAppSettings(db);
+    const shopperProfile = await getUserProfile(db, user.id);
     paths = [...new Set(paths.flatMap((p) => buildProfilePaths(p, shopperProfile)))].slice(0, 10);
     profilePatch = profileToFilterPatch(shopperProfile);
   }
@@ -174,7 +183,7 @@ export async function quickAddFromCategoriesAction(_prev: QuickAddState, formDat
     notifyMode: "all",
     notifyMinScore: 50,
     filters: { categoryPaths: paths, keywords, ...profilePatch },
-  });
+  }, user.id);
   const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
   if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
   revalidatePath("/criteres");
@@ -183,8 +192,8 @@ export async function quickAddFromCategoriesAction(_prev: QuickAddState, formDat
 }
 
 export async function seedExamplesAction(): Promise<void> {
-  await requireUser();
-  for (const c of EXAMPLE_CRITERIA) await createCriterion(getDb(), c);
+  const user = await requireUser();
+  for (const c of EXAMPLE_CRITERIA) await createCriterion(getDb(), c, user.id);
   revalidatePath("/criteres");
 }
 
@@ -192,7 +201,7 @@ export async function seedExamplesAction(): Promise<void> {
 export async function seedRecommendedAction(): Promise<void> {
   const user = await requireUser();
   const db = getDb();
-  const added = await seedRecommendedCriteria(db);
+  const added = await seedRecommendedCriteria(db, { userId: user.id });
   if (added > 0) {
     const pending = await db.select({ id: runRequests.id }).from(runRequests).where(eq(runRequests.status, "pending")).limit(1);
     if (pending.length === 0) await db.insert(runRequests).values({ requestedBy: user.email });
