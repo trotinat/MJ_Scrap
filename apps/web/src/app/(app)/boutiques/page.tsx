@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowDownWideNarrow, ArrowRight, Search, Store } from "lucide-react";
+import { ArrowDownWideNarrow, Boxes, Clock3, Search, Store } from "lucide-react";
 import { DealCard, dealGrid } from "@/components/deal-card";
-import { EmptyState, PageHeader, btn, input } from "@/components/ui";
+import { EmptyState, PageHeader, StatCard, btn, input } from "@/components/ui";
 import { shopDiscovery } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
 
@@ -29,32 +29,26 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
   };
 
   return <>
-    <section className="mb-6 overflow-hidden rounded-[1.7rem] bg-ink p-5 text-white sm:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-5">
-        <div className="max-w-xl">
-          <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-tag"><Store className="h-4 w-4" /> Le marché Hawta</p>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Toutes vos boutiques,<br className="hidden sm:block" /> un seul bon choix.</h1>
-          <p className="mt-3 text-sm leading-6 text-white/75">Parcourez les produits collectés dans vos boutiques. Les baisses mesurées restent séparées des remises annoncées.</p>
-        </div>
-        <div className="grid min-w-[190px] grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-white/10 p-3"><p className="text-xs text-white/65">Boutiques</p><p className="mt-1 text-2xl font-extrabold">{data.shops.length}</p></div>
-          <div className="rounded-2xl bg-white/10 p-3"><p className="text-xs text-white/65">Offres fraîches</p><p className="mt-1 text-2xl font-extrabold">{totalFresh.toLocaleString("fr-FR")}</p></div>
-        </div>
-      </div>
+    <PageHeader title="Toutes les boutiques" description="Un seul catalogue pour parcourir les offres collectées dans vos boutiques. Chaque prix garde sa source et son historique." actions={<Link href="/criteres/nouveau" className={btn.primary}><Search className="h-4 w-4" /> Créer une recherche</Link>} />
+
+    <section aria-label="Résumé du catalogue" className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <StatCard label="Boutiques disponibles" value={data.shops.length} icon={Store} tone="blue" />
+      <StatCard label="Offres dans le catalogue" value={data.shops.reduce((n, s) => n + Number(s.offers), 0).toLocaleString("fr-FR")} icon={Boxes} />
+      <StatCard label="Offres récentes" value={totalFresh.toLocaleString("fr-FR")} hint="Selon la fraîcheur configurée" icon={Clock3} tone="green" />
     </section>
 
     {data.shops.length > 0 && <section aria-label="Boutiques disponibles" className="mb-6">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-bold">Vos boutiques</h2>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div><p className="section-eyebrow">VOTRE ESPACE</p><h2 className="mt-1 font-display text-xl font-bold">Choisir une boutique</h2></div>
         {shopId && <Link href={paramsFor()} className="text-sm font-semibold text-brand-700">Tout voir</Link>}
       </div>
       <div className="flex snap-x gap-3 overflow-x-auto pb-2">
-        <Link href={paramsFor()} aria-current={!shopId ? "page" : undefined} className={`min-w-[190px] snap-start rounded-2xl border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${!shopId ? "border-brand-600 bg-brand-50" : "border-paper-line bg-paper-card hover:border-brand-300"}`}>
+        <Link href={paramsFor()} aria-current={!shopId ? "page" : undefined} className={`min-w-[190px] snap-start rounded-[1.35rem] border p-4 card-soft transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${!shopId ? "border-brand-600 bg-brand-50" : "border-paper-line bg-paper-card hover:border-brand-300"}`}>
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink text-tag"><Store className="h-5 w-5" /></span>
           <span className="mt-3 block font-bold">Toutes les boutiques</span>
           <span className="mt-1 block text-xs text-ink-mute">{data.shops.reduce((n, s) => n + Number(s.offers), 0).toLocaleString("fr-FR")} offres suivies</span>
         </Link>
-        {data.shops.map((shop) => <Link key={shop.shop_id} href={paramsFor(shop.shop_id)} aria-current={shopId === shop.shop_id ? "page" : undefined} className={`min-w-[190px] snap-start rounded-2xl border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${shopId === shop.shop_id ? "border-brand-600 bg-brand-50" : "border-paper-line bg-paper-card hover:border-brand-300"}`}>
+        {data.shops.map((shop) => <Link key={shop.shop_id} href={paramsFor(shop.shop_id)} aria-current={shopId === shop.shop_id ? "page" : undefined} className={`min-w-[190px] snap-start rounded-[1.35rem] border p-4 card-soft transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${shopId === shop.shop_id ? "border-brand-600 bg-brand-50" : "border-paper-line bg-paper-card hover:border-brand-300"}`}>
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-paper text-brand-700"><Store className="h-5 w-5" /></span>
           <span className="mt-3 block truncate font-bold">{shop.name}</span>
           <span className="mt-1 block text-xs text-ink-mute">{Number(shop.offers).toLocaleString("fr-FR")} offres · {Number(shop.fresh).toLocaleString("fr-FR")} récentes</span>
@@ -66,9 +60,8 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
     <section>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div><p className="section-eyebrow">CATALOGUE COLLECTÉ</p><h2 className="mt-1 font-display text-2xl font-extrabold">{selectedShop?.name ?? "Les offres du moment"}</h2><p className="mt-1 text-sm text-ink-mute">{data.total.toLocaleString("fr-FR")} offres · chaque carte indique sa boutique source.</p></div>
-        <Link href="/criteres/nouveau" className={btn.secondary}>Créer une recherche <ArrowRight className="h-4 w-4" /></Link>
       </div>
-      <form method="get" className="mb-5 grid gap-2 rounded-2xl border border-paper-line bg-paper-card p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]">
+      <form method="get" className="mb-5 grid gap-2 rounded-[1.35rem] border border-paper-line bg-paper-card p-4 card-soft sm:grid-cols-[minmax(0,1fr)_190px_auto]">
         {shopId && <input type="hidden" name="shop" value={shopId} />}
         <label className="relative block"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-mute" aria-hidden /><input className={`${input} pl-10`} type="search" name="q" defaultValue={q} placeholder="Chercher un produit ou une marque" aria-label="Chercher dans les boutiques" /></label>
         <label className="relative block"><ArrowDownWideNarrow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-mute" aria-hidden /><select className={`${input} pl-10`} name="sort" defaultValue={sort} aria-label="Trier les offres"><option value="best">Meilleures baisses</option><option value="recent">Plus récentes</option><option value="price">Prix le plus bas</option></select></label>
