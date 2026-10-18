@@ -6,6 +6,7 @@ import { profileHighlights, type DealClass, type ShopperProfile } from "@mdw/sha
 import { telegramStatus } from "@/lib/telegram-status";
 import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
+import { DealResultsGrid } from "@/components/deal-results-grid";
 import { btn, EmptyState } from "@/components/ui";
 import { criteriaSummaries, dashboardStats, flashOffers, weeklyOffers, listDeals, type DealRow, type FlashRow } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
@@ -114,7 +115,7 @@ export default async function HomePage() {
           <div><p className="section-eyebrow">SÉLECTION PERSONNELLE</p><h2 className="mt-1 font-display text-2xl font-extrabold sm:text-3xl">Repérés pour vous</h2><p className="mt-2 text-sm text-ink-mute">{active.length} recherche{active.length > 1 ? "s" : ""} active{active.length > 1 ? "s" : ""} · produits variés · prix récents</p></div>
           <Link href="/promotions" className={`${btn.secondary} hidden sm:inline-flex`}>Tous mes résultats <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
-        <nav aria-label="Résultats par recherche" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <nav aria-label="Résultats par recherche" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-clip">
           {active.filter(c => (summaries.get(c.id)?.matches ?? 0) > 0).map(c => (
             <Link key={c.id} href={`/promotions?criterionId=${c.id}`} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-paper-line bg-paper-card px-4 text-sm font-semibold text-ink-soft hover:border-brand-500 hover:text-brand-700">
               {c.name.replace(/^Mode Homme\s*–\s*/, "").split(/[–·(]/)[0]?.trim()} <span className="num text-xs text-brand-600">{summaries.get(c.id)?.matches}</span>
@@ -123,7 +124,7 @@ export default async function HomePage() {
         </nav>
         {hero ? <>
           <div className="mb-4"><DealCard d={fromDeal(hero, settings.shopperProfile)} size="lg" /></div>
-          <div className={dealGrid}>{rest.map(d => <DealCard key={d.offer_id} d={fromDeal(d, settings.shopperProfile)} />)}</div>
+          <DealResultsGrid className={dealGrid}>{rest.map(d => <DealCard key={d.offer_id} d={fromDeal(d, settings.shopperProfile)} />)}</DealResultsGrid>
         </> : <div className="grid overflow-hidden rounded-3xl border border-paper-line bg-paper-card md:grid-cols-[1.2fr_1fr]">
           <div className="p-6 sm:p-8"><span className="mb-4 inline-flex rounded-2xl bg-proof-soft p-3 text-proof"><ShieldCheck className="h-7 w-7" /></span>
             <h3 className="font-display text-2xl font-bold">Le bon plan mérite d’être le bon produit.</h3>
@@ -147,7 +148,7 @@ export default async function HomePage() {
 
       {discoveries.length > 0 && <section className="mb-9">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="section-eyebrow">À EXPLORER</p><h2 className="mt-1 flex items-center gap-2 font-display text-2xl font-bold sm:text-3xl"><Zap className="h-6 w-6 text-tag-deep" /> Les promos du moment</h2><p className="mt-2 text-sm text-ink-mute">Des promotions filtrées selon votre profil, avec les produits du quotidien.</p></div><Link href="/ventes-flash" className={btn.ghost}>Explorer les promos <ArrowUpRight className="h-4 w-4" /></Link></div>
-        <div className={dealGrid}>{discoveries.map(r => <DealCard key={r.offer_id} d={{...fromFlash(r,settings.shopperProfile), highlights:[]}} />)}</div>
+        <DealResultsGrid className={dealGrid}>{discoveries.map(r => <DealCard key={r.offer_id} d={{...fromFlash(r,settings.shopperProfile), highlights:[]}} />)}</DealResultsGrid>
       </section>}
       <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-paper-line bg-paper-card px-5 py-4 text-xs text-ink-mute"><span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-proof" /> Aucune taille devinée</span><span>Prix barrés : déclarations du vendeur</span><span>Historique : nos propres relevés</span><Link className="ml-auto font-semibold text-ink hover:underline" href="/collectes">Voir la qualité des collectes →</Link></div>
     </>

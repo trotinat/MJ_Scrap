@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isDirectLocalRequest } from "./lib/local-access";
 
-const PUBLIC = [/^\/login$/, /^\/api\/health$/, /^\/_next\//, /^\/favicon/];
+const PUBLIC = [/^\/login$/, /^\/api\/health$/, /^\/_next\//, /^\/favicon/, /^\/brands\//];
 
 /**
  * First line of defence: requests without a session cookie are redirected to

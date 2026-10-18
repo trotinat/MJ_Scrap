@@ -4,6 +4,7 @@ import { getDb, getUserSettings } from "@mdw/database";
 import { requireUser } from "@/lib/session";
 import { btn, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
+import { DealResultsGrid } from "@/components/deal-results-grid";
 import { dealFacets, listDeals } from "@/lib/queries";
 import { filtersToQuery, parseDealFilters } from "@/lib/deal-filters";
 import type { DealClass } from "@mdw/shared";
@@ -126,7 +127,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
               <GitCompare className="h-4 w-4" /> Comparer
             </button>
           </form>
-          <div className={dealGrid}>
+          <DealResultsGrid className={dealGrid}>
             {deals.rows.map((d) => (
               <DealCard
                 key={d.offer_id}
@@ -152,7 +153,7 @@ export default async function PromotionsPage({ searchParams }: { searchParams: P
                 }}
               />
             ))}
-          </div>
+          </DealResultsGrid>
           {pages > 1 && (
             <nav className="mt-6 flex items-center justify-center gap-2 text-sm" aria-label="Pagination">
               {page > 1 && (

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowDownWideNarrow, Boxes, Clock3, Search, Store } from "lucide-react";
 import { DealCard, dealGrid } from "@/components/deal-card";
+import { DealResultsGrid } from "@/components/deal-results-grid";
+import { ShopBrandIcon } from "@/components/shop-brand-icon";
 import { EmptyState, PageHeader, StatCard, btn, input } from "@/components/ui";
 import { shopDiscovery } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
@@ -49,7 +51,7 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
           <span className="mt-1 block text-xs text-ink-mute">{data.shops.reduce((n, s) => n + Number(s.offers), 0).toLocaleString("fr-FR")} offres suivies</span>
         </Link>
         {data.shops.map((shop) => <Link key={shop.shop_id} href={paramsFor(shop.shop_id)} aria-current={shopId === shop.shop_id ? "page" : undefined} className={`min-w-[190px] snap-start rounded-[1.35rem] border p-4 card-soft transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${shopId === shop.shop_id ? "border-brand-600 bg-brand-50" : "border-paper-line bg-paper-card hover:border-brand-300"}`}>
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-paper text-brand-700"><Store className="h-5 w-5" /></span>
+          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white"><ShopBrandIcon name={shop.name} className="h-10 w-10" /></span>
           <span className="mt-3 block truncate font-bold">{shop.name}</span>
           <span className="mt-1 block text-xs text-ink-mute">{Number(shop.offers).toLocaleString("fr-FR")} offres · {Number(shop.fresh).toLocaleString("fr-FR")} récentes</span>
           <span className="mt-2 block text-[11px] text-ink-mute">Vu {relativeTime(shop.last_seen)}</span>
@@ -70,12 +72,12 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
 
       {data.invalidShop ? <EmptyState icon={Store} title="Cette boutique n’est pas disponible sur votre profil" />
         : data.rows.length ? <>
-          <div className={dealGrid}>{data.rows.map((r) => <DealCard key={r.offerId} d={{
+          <DealResultsGrid className={dealGrid}>{data.rows.map((r) => <DealCard key={r.offerId} d={{
             offerId: r.offerId, shopName: r.shopName, title: r.title, url: r.url, imageUrl: r.imageUrl,
             brand: r.brand, priceCents: r.priceCents!, originalPriceCents: r.originalPriceCents,
             discountPct: r.discountPct, previousPriceCents: r.previousPriceCents, minPriceCents: r.minPriceCents,
             firstSeenAt: r.firstSeenAt, observedAt: r.observedAt, status: "active", stockStatus: r.stock,
-          }} />)}</div>
+          }} />)}</DealResultsGrid>
           {data.pages > 1 && <nav className="mt-6 flex items-center justify-center gap-3" aria-label="Pagination des offres">
             {data.page > 1 && <Link className={btn.secondary} href={`/boutiques?${new URLSearchParams({ ...(shopId ? { shop: shopId } : {}), ...(q ? { q } : {}), sort, page: String(data.page - 1) })}`}>Précédent</Link>}
             <span className="text-sm text-ink-mute">Page {data.page} / {data.pages}</span>

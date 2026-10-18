@@ -1,4 +1,4 @@
-# Brief Saad — développer un connecteur boutique pour Hawta
+# Brief Saad — développeconnecteur boutique pour Hawta
 
 Ce brief est à donner à l’agent IA de Saad. Saad choisit la boutique et le périmètre qu’il veut développer. Le dépôt partagé est [trotinat/MJ_Scrap](https://github.com/trotinat/MJ_Scrap), nom public **Hawta**.
 

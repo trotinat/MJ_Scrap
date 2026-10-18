@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { DESTOCKAGE_PATHS, profileHighlights, profileIsEmpty, suitsProfile, type ShopperProfile } from "@mdw/shared";
 import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
+import { DealResultsGrid } from "@/components/deal-results-grid";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { flashOffers, flashPages, weeklyOffers, type FlashRow, type FlashSort } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
@@ -142,11 +143,11 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
                 <span className="rounded-full bg-tag-soft px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-tag-deep/30">{forYou.length}</span>
               </div>
               <p className="mb-3 text-sm text-ink-mute">Offres du déstockage qui correspondent à votre profil (marque, vendeur ou genre), après vérification de compatibilité.</p>
-              <div className={dealGrid}>
+              <DealResultsGrid className={dealGrid}>
                 {forYou.slice(0, 8).map((c) => (
                   <DealCard key={c.offerId} d={c} />
                 ))}
-              </div>
+              </DealResultsGrid>
             </section>
           )}
 
@@ -159,11 +160,11 @@ export default async function DestockagePage({ searchParams }: { searchParams: P
                 <Sparkles className="h-4 w-4 text-tag-deep" /> Renseignez votre profil pour faire remonter ce qui est à votre taille et dans votre budget.
               </Link>
             )}
-            <div className={dealGrid}>
+            <DealResultsGrid className={dealGrid}>
               {cards.map((c) => (
                 <DealCard key={c.offerId} d={c} />
               ))}
-            </div>
+            </DealResultsGrid>
           </section>
         </>
       )}

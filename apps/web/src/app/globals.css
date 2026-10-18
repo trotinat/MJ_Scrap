@@ -82,8 +82,56 @@ h3 {
   box-shadow: 0 0 0 3rem rgb(255 255 255 / .06), 0 0 0 6rem rgb(255 255 255 / .035);
   pointer-events: none;
 }
+
+/* Dense product layout, activated by the results view switch. */
+.deal-grid[data-layout="two"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .625rem;
+}
+.deal-grid[data-layout="two"] > article { flex-direction: column; }
+.deal-grid[data-layout="two"] > article > div:first-child {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+.deal-grid[data-layout="two"] > article > div:first-child > :first-child {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1;
+}
+.deal-grid[data-layout="two"] > article > div:last-child { gap: .375rem; padding: .625rem; }
+.deal-grid[data-layout="two"] > article > div:last-child > div:last-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.75rem;
+  gap: .25rem;
+}
+.deal-grid[data-layout="two"] .retailer-actions { display: contents; }
+.deal-grid[data-layout="two"] .retailer-actions > a { min-width: 0; padding-inline: .375rem; }
+.deal-grid[data-layout="two"] .retailer-actions > button { grid-column: 2; }
+.deal-grid[data-layout="two"] > article > div:last-child > div:last-child > button {
+  grid-column: 2;
+  grid-row: 2;
+}
+.deal-grid[data-layout="two"] .retailer-actions [role="status"] { grid-column: 1 / -1; }
+
+@media (min-width: 640px) {
+  .deal-grid[data-layout="two"] { gap: 1rem; }
+  .deal-grid[data-layout="two"] > article > div:last-child { padding: .875rem; }
+  .deal-grid[data-layout="two"] > article > div:last-child > div:last-child { grid-template-columns: minmax(0, 1fr) 2.75rem; gap: .5rem; }
+}
 .section-eyebrow { @apply text-[11px] font-extrabold uppercase tracking-[.16em] text-brand-600; }
 a, button, input, select { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2; }
+
+.deal-card-featured { display: grid !important; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); }
+.deal-card-featured > div:first-child { position: relative; align-self: stretch; width: 100% !important; min-width: 0 !important; max-width: none; background: #fff; }
+.deal-card-featured > div:first-child > div { position: absolute !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; aspect-ratio: auto !important; }
+@media (min-width: 640px) {
+  .deal-card-featured { grid-template-columns: minmax(0, 34%) minmax(0, 1fr); }
+}
+@media (min-width: 1024px) {
+  .deal-card-featured { grid-template-columns: minmax(0, 30%) minmax(0, 1fr); }
+}
 
 /* Fade-and-rise used for grids of deal cards on first paint. */
 @keyframes rise {

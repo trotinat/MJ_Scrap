@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { RetailerLink } from "./retailer-link";
 import { ShareButton } from "./share-button";
 import { CheckCheck, TrendingDown } from "lucide-react";
@@ -55,17 +56,19 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
   const profileTags = (d.highlights ?? []).filter((h) => h.tone === "profile");
   const host = new URL(d.url).hostname.replace(/^www\./, "");
   const source = d.shopName ?? (host === "marjanemall.ma" ? "Marjane Mall" : host);
+  const isMarjane = host === "marjanemall.ma" || d.shopName?.trim().toLowerCase() === "marjane mall";
   return (
     <article
       className={cx(
-        "group relative flex flex-col overflow-hidden rounded-[1.35rem] border bg-paper-card card-soft transition-transform duration-200 hover:-translate-y-0.5",
+        "group relative flex flex-row overflow-hidden rounded-[1.35rem] border bg-paper-card card-soft transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:transform-none",
         d.matches?.length ? "border-brand-100" : "border-paper-line hover:border-brand-100",
-        big && "sm:flex-row",
+        big && "deal-card-featured sm:flex-row",
+        !big && "sm:flex-col",
         d.status && d.status !== "active" && "opacity-60",
       )}
     >
-      <div className={cx("relative block bg-[#F7F8FC]", big && "sm:w-1/2 sm:shrink-0")}>
-        <ProductGallery images={gallery} alt={d.title} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-[5/4]" : "aspect-[5/4]")} />
+      <div className={cx("relative block w-[38%] min-w-[118px] max-w-[168px] shrink-0 bg-[#F7F8FC]", big ? "sm:w-[34%] sm:max-w-none lg:w-[30%]" : "sm:w-full sm:max-w-none")}>
+        <ProductGallery images={gallery} alt={d.title} className={cx("h-full min-h-[152px] w-full sm:h-auto sm:min-h-0", big ? "sm:aspect-[4/3]" : "sm:aspect-[5/4]")} />
         {d.discountPct !== null && d.discountPct > 0 && (
           <span
             className="num absolute left-2 top-2 rounded-lg bg-white/95 px-2 py-1 text-xs font-extrabold text-promo shadow-sm"
@@ -84,8 +87,8 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         )}
       </div>
 
-      <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-5 sm:p-6" : "p-3.5")}>
-        <div className="flex min-w-0 items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>{d.stockStatus && <StockBadge stock={d.stockStatus} />}</div>
+      <div className={cx("flex min-w-0 flex-1 flex-col gap-1.5 sm:gap-2", big ? "p-3.5 sm:p-5" : "p-3 sm:p-3.5")}>
+        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{isMarjane ? <Image src="/brands/marjane-mark.png" alt="Marjane Mall" width={32} height={32} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div>{d.stockStatus && <StockBadge stock={d.stockStatus} />}</div>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100
@@ -101,12 +104,12 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
           </div>
         )}
         {d.brand && <p className="truncate text-[11px] font-extrabold uppercase tracking-[.12em] text-brand-600">{d.brand}</p>}
-        <Link href={`/produits/${d.offerId}`} className={cx("font-semibold leading-snug text-ink hover:underline", big ? "line-clamp-3 font-display text-xl font-extrabold" : "line-clamp-2 min-h-[2.5rem] text-sm")}>
+        <Link href={`/produits/${d.offerId}`} className={cx("font-semibold leading-snug text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600", big ? "line-clamp-2 font-display text-lg font-extrabold" : "line-clamp-2 min-h-[2.5rem] text-sm")}>
           {d.title}
         </Link>
 
-        <div className="mt-auto flex flex-wrap items-end gap-x-2 gap-y-1 border-t border-paper-line pt-3">
-          <span className={cx("price-tag num font-extrabold", big ? "text-3xl" : "text-xl")}>
+        <div className="mt-auto flex flex-wrap items-end gap-x-2 gap-y-1 border-t border-paper-line pt-2 sm:pt-3">
+          <span className={cx("price-tag num font-extrabold", big ? "text-2xl" : "text-xl")}>
             {shortMad(d.priceCents)}
             <span className="text-xs font-bold">DH</span>
           </span>
@@ -117,21 +120,21 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
 
         {(f.saving || f.dropped) && (
           <div className="num space-y-0.5 text-xs">
-            {f.saving && <p className="text-ink-mute">{shortMad(f.saving)} DH sous le prix barré annoncé</p>}
+            {f.saving && <p className="truncate text-ink-mute" title={`${shortMad(f.saving)} DH sous le prix barré annoncé`}><span className="sm:hidden">-{shortMad(f.saving)} DH annoncés</span><span className="hidden sm:inline">{shortMad(f.saving)} DH sous le prix barré annoncé</span></p>}
             {f.dropped && (
               <p className="font-semibold text-proof" title="Calculé sur nos propres relevés de prix">
-                <TrendingDown className="mr-1 inline h-3.5 w-3.5" /> -{f.dropPct}% mesurés depuis le dernier relevé
+                <TrendingDown className="mr-1 inline h-3.5 w-3.5" /> <span className="sm:hidden">-{f.dropPct}% mesurés</span><span className="hidden sm:inline">-{f.dropPct}% mesurés depuis le dernier relevé</span>
               </p>
             )}
           </div>
         )}
 
-        <p className="text-[11px] text-ink-mute">Article seul · hors livraison</p>
-        {!f.dropped && <p className="text-[11px] text-ink-mute">{d.previousPriceCents === null ? 'Premier relevé · baisse non vérifiée' : d.priceCents === d.previousPriceCents ? 'Prix stable' : 'Prix en hausse'}{d.observedAt && ` · ${new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}`}</p>}
-        {f.dropped && d.observedAt && <p className="text-[11px] text-ink-mute">Relevé le {new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</p>}
+        <p className="hidden text-[11px] text-ink-mute sm:block">Article seul · hors livraison</p>
+        {!f.dropped && <p className="hidden text-[11px] text-ink-mute sm:block">{d.previousPriceCents === null ? 'Premier relevé · baisse non vérifiée' : d.priceCents === d.previousPriceCents ? 'Prix stable' : 'Prix en hausse'}{d.observedAt && ` · ${new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}`}</p>}
+        {f.dropped && d.observedAt && <p className="hidden text-[11px] text-ink-mute sm:block">Relevé le {new Date(d.observedAt).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</p>}
 
         {d.matches && d.matches.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="hidden flex-wrap gap-1 sm:flex">
             {d.matches.slice(0, 1).map((m) => (
             <span key={m.id} className="max-w-full truncate rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700" title={m.name}>
                 {m.name}
@@ -142,17 +145,17 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         )}
 
         {compareForm && (
-          <label className="inline-flex items-center gap-1.5 text-xs text-ink-mute">
-            <input type="checkbox" name="ids" value={d.offerId} form={compareForm} className="h-3.5 w-3.5 rounded border-paper-line accent-ink" /> Comparer
+          <label className="inline-flex min-h-11 items-center gap-2 text-xs text-ink-mute">
+            <input type="checkbox" name="ids" value={d.offerId} form={compareForm} className="h-5 w-5 rounded border-paper-line accent-ink" /> Comparer
           </label>
         )}
         <div className="flex items-center gap-2">
-          <RetailerLink url={d.url} className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700" />
-          <ShareButton url={d.url} title={d.title} label="" className="shrink-0 rounded-xl px-2.5 py-2" />
+          <RetailerLink compact url={d.url} className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl bg-brand-600 px-2 py-2 text-xs font-bold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 sm:px-3" />
+          <ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 shrink-0 rounded-xl px-2.5 py-2" />
         </div>
       </div>
     </article>
   );
 }
 
-export const dealGrid = "deal-grid grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";
+export const dealGrid = "deal-grid grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-4";

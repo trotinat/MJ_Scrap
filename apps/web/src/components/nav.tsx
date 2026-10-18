@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ShoppingBag, Bell, History, LineChart, MoreHorizontal, Percent, Search, Settings, ShieldCheck, Tag, UserCog, X, Zap, Home, Radar, Store } from "lucide-react";
+import { ShopBrandIcon } from "@/components/shop-brand-icon";
 import type { LucideIcon } from "lucide-react";
 import { cx } from "./ui";
 
@@ -118,7 +119,7 @@ export function Nav({ email, logout, shops = [] }: { email: string; logout: (() 
         {shops.length > 0 && <div className="mt-6 border-t border-paper-line px-3 pt-4">
           <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Mes boutiques</p>
           <nav className="flex flex-col gap-0.5" aria-label="Accès direct aux boutiques">
-            {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} aria-current={pathname === "/boutiques" && searchParams.get("shop") === shop.id ? "page" : undefined} className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm text-ink-soft hover:bg-paper hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><Store className="h-4 w-4 text-brand-600" aria-hidden />{shop.name}</Link>)}
+            {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} aria-current={pathname === "/boutiques" && searchParams.get("shop") === shop.id ? "page" : undefined} className="flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm text-ink-soft hover:bg-paper hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><ShopBrandIcon name={shop.name} className="h-5 w-5 shrink-0 text-brand-600" />{shop.name}</Link>)}
           </nav>
         </div>}
         <p className="mt-8 px-6 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Outils</p>
@@ -180,7 +181,7 @@ export function Nav({ email, logout, shops = [] }: { email: string; logout: (() 
             {shops.length > 0 && <div className="mt-4 border-t border-paper-line pt-4">
               <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-widest text-ink-mute">Mes boutiques</p>
               <nav className="flex flex-col gap-1" aria-label="Boutiques disponibles">
-                {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><Store className="h-4 w-4 text-brand-600" aria-hidden />{shop.name}</Link>)}
+                {shops.map((shop) => <Link key={shop.id} href={`/boutiques?shop=${encodeURIComponent(shop.id)}`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-tag"><ShopBrandIcon name={shop.name} className="h-5 w-5 shrink-0 text-brand-600" />{shop.name}</Link>)}
               </nav>
             </div>}
             <div className="mt-4 border-t border-paper-line pt-3">{account(false)}</div>

@@ -7,6 +7,7 @@ import { profileHighlights } from "@mdw/shared";
 import { CheckNowButton } from "@/components/check-now-button";
 import { btn, cx, EmptyState, input, PageHeader } from "@/components/ui";
 import { DealCard, dealGrid } from "@/components/deal-card";
+import { DealResultsGrid } from "@/components/deal-results-grid";
 import { flashOffers, flashPages, weeklyOffers, type FlashSort } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
 
@@ -105,7 +106,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
           {rows.length === 0 ? (
             <EmptyState icon={Zap} title="Aucun produit pour cette recherche" />
           ) : (
-            <div className={dealGrid}>
+            <DealResultsGrid className={dealGrid}>
               {rows.map((r) => (
                 <DealCard
                   key={r.offer_id}
@@ -130,7 +131,7 @@ export default async function VentesFlashPage({ searchParams }: { searchParams: 
                   }}
                 />
               ))}
-            </div>
+            </DealResultsGrid>
           )}
         </>
       )}
