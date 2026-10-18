@@ -1,0 +1,11 @@
+# Use Tailscale Serve for private HTTPS phone access instead of a public
+# domain/Caddy. Publish the Next.js server on loopback only; it is not exposed
+# directly to the public internet.
+services:
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  caddy:
+    profiles:
+      - public-domain

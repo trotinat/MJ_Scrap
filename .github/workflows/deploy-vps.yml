@@ -1,0 +1,56 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - feat/profil-destockage-ui
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marjane-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" || { echo "Missing DEPLOY_SSH_KEY" >&2; exit 1; }
+          test -n "$DEPLOY_HOST" || { echo "Missing DEPLOY_HOST" >&2; exit 1; }
+          test -n "$DEPLOY_KNOWN_HOSTS" || { echo "Missing DEPLOY_KNOWN_HOSTS" >&2; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy on the VPS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_BRANCH" in
+            main|feat/profil-destockage-ui) ;;
+            *) echo "Refusing to deploy unexpected branch: $DEPLOY_BRANCH" >&2; exit 1 ;;
+          esac
+          test -n "$DEPLOY_USER" || { echo "Missing DEPLOY_USER" >&2; exit 1; }
+          ssh -i "$HOME/.ssh/id_ed25519" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd /opt/marjane-deals-watcher && git fetch origin '$DEPLOY_BRANCH' && git checkout -B '$DEPLOY_BRANCH' 'origin/$DEPLOY_BRANCH' && bash scripts/deploy-vps.sh"
