@@ -1,0 +1,354 @@
+{
+ "id": 10924956254475,
+ "title": "V-S1 TotalEnergies AFCON - EGYPTE",
+ "handle": "puma-v-s1-totalenergies-afcon-egypte-404147-05",
+ "description": "",
+ "published_at": "2026-10-05T11:56:47+00:00",
+ "created_at": "2026-03-31T23:10:43+01:00",
+ "vendor": "PUMA",
+ "type": "Footwear",
+ "tags": [
+  "Chaussures",
+  "EOSS SP26",
+  "MEN",
+  "SS26",
+  "WOMEN"
+ ],
+ "price": 46900,
+ "price_min": 46900,
+ "price_max": 46900,
+ "available": true,
+ "price_varies": false,
+ "compare_at_price": 156900,
+ "compare_at_price_min": 156900,
+ "compare_at_price_max": 156900,
+ "compare_at_price_varies": false,
+ "variants": [
+  {
+   "id": 53017934364939,
+   "title": "35",
+   "option1": "35",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_4",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 35",
+   "public_title": "35",
+   "options": [
+    "35"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898266",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934397707,
+   "title": "37",
+   "option1": "37",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 37",
+   "public_title": "37",
+   "options": [
+    "37"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898273",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934430475,
+   "title": "38",
+   "option1": "38",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_6",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 38",
+   "public_title": "38",
+   "options": [
+    "38"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898280",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934463243,
+   "title": "38.5",
+   "option1": "38.5",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_6_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 38.5",
+   "public_title": "38.5",
+   "options": [
+    "38.5"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898358",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934496011,
+   "title": "40",
+   "option1": "40",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_7_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 40",
+   "public_title": "40",
+   "options": [
+    "40"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898365",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934528779,
+   "title": "40.5",
+   "option1": "40.5",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_8",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 40.5",
+   "public_title": "40.5",
+   "options": [
+    "40.5"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898303",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934561547,
+   "title": "41",
+   "option1": "41",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_8_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 41",
+   "public_title": "41",
+   "options": [
+    "41"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898372",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934594315,
+   "title": "42",
+   "option1": "42",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_9",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": false,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 42",
+   "public_title": "42",
+   "options": [
+    "42"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898310",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934627083,
+   "title": "42.5",
+   "option1": "42.5",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_9_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 42.5",
+   "public_title": "42.5",
+   "options": [
+    "42.5"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898204",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  },
+  {
+   "id": 53017934659851,
+   "title": "44",
+   "option1": "44",
+   "option2": null,
+   "option3": null,
+   "sku": "404147-05_10_5",
+   "requires_shipping": true,
+   "taxable": true,
+   "featured_image": null,
+   "available": true,
+   "name": "V-S1 TotalEnergies AFCON - EGYPTE - 44",
+   "public_title": "44",
+   "options": [
+    "44"
+   ],
+   "price": 46900,
+   "weight": 0,
+   "compare_at_price": 156900,
+   "inventory_management": "shopify",
+   "barcode": "4069161898242",
+   "quantity_rule": {
+    "min": 1,
+    "max": null,
+    "increment": 1
+   },
+   "quantity_price_breaks": [],
+   "requires_selling_plan": false,
+   "selling_plan_allocations": []
+  }
+ ],
+ "images": [
+  "//cdn.shopify.com/s/files/1/0643/1345/8819/files/404147-05_000_001.webp?v=1774995066"
+ ],
+ "featured_image": "//cdn.shopify.com/s/files/1/0643/1345/8819/files/404147-05_000_001.webp?v=1774995066",
+ "options": [
+  {
+   "name": "Size",
+   "position": 1,
+   "values": [
+    "35",
+    "37",
+    "38",
+    "38.5",
+    "40",
+    "40.5",
+    "41",
+    "42",
+    "42.5",
+    "44"
+   ]
+  }
+ ],
+ "url": "/products/puma-v-s1-totalenergies-afcon-egypte-404147-05",
+ "media": [],
+ "requires_selling_plan": false,
+ "selling_plan_groups": []
+}

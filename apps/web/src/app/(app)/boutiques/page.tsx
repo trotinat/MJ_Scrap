@@ -4,7 +4,7 @@ import { DealCard, dealGrid } from "@/components/deal-card";
 import { DealResultsGrid } from "@/components/deal-results-grid";
 import { ShopBrandIcon } from "@/components/shop-brand-icon";
 import { EmptyState, PageHeader, StatCard, btn, input } from "@/components/ui";
-import { shopDiscovery } from "@/lib/queries";
+import { PROFILE_FILTERED_SHOPS, shopDiscovery } from "@/lib/queries";
 import { relativeTime } from "@/lib/format";
 
 export const metadata = { title: "Toutes les boutiques · Hawta" };
@@ -63,6 +63,7 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div><p className="section-eyebrow">CATALOGUE COLLECTÉ</p><h2 className="mt-1 font-display text-2xl font-extrabold">{selectedShop?.name ?? "Les offres du moment"}</h2><p className="mt-1 text-sm text-ink-mute">{data.total.toLocaleString("fr-FR")} offres · chaque carte indique sa boutique source.</p></div>
       </div>
+      {selectedShop && PROFILE_FILTERED_SHOPS.includes(selectedShop.shop_id) && <p className="mb-5 rounded-xl bg-brand-50 p-3 text-sm text-brand-700">Sélection selon votre profil : seuls les produits compatibles avec votre genre, votre âge et vos tailles sont affichés. <Link href="/profil" className="font-semibold underline">Modifier mon profil</Link></p>}
       <form method="get" className="mb-5 grid gap-2 rounded-[1.35rem] border border-paper-line bg-paper-card p-4 card-soft sm:grid-cols-[minmax(0,1fr)_190px_auto]">
         {shopId && <input type="hidden" name="shop" value={shopId} />}
         <label className="relative block"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-mute" aria-hidden /><input className={`${input} pl-10`} type="search" name="q" defaultValue={q} placeholder="Chercher un produit ou une marque" aria-label="Chercher dans les boutiques" /></label>

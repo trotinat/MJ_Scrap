@@ -11,3 +11,5 @@ export { parsePriceLines, moneyCandidates, findDiscount } from "./parse/price";
 export { findSeller, findStock, findReviewCount, findRating } from "./parse/fields";
 
 export { parseCampaignLinks } from './parse/campaigns';
+export * from "./shopify";
+export * from "./shops/urban-jungle";

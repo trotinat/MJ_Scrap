@@ -9,6 +9,7 @@ import {
   SPEC_ATTRIBUTES,
   SPEC_OPERATOR_LABELS,
   SPEC_OPERATORS,
+  URBAN_JUNGLE_COLLECTIONS,
   type CriterionInput,
   type SpecRule,
 } from "@mdw/shared";
@@ -26,6 +27,23 @@ type Draft = Omit<CriterionInput, "filters"> & { filters: CriterionInput["filter
 type PreviewItem = { url: string; title: string; imageUrl: string | null; priceCents: number; originalPriceCents: number | null; advertisedDiscountPct: number | null; seller: string | null; score: number; dealClass: string };
 type PreviewEvent = { type: string; item?: PreviewItem; message?: string; path?: string; checked?: number; found?: number; rejected?: number; errors?: number; count?: number; title?: string; reasons?: string[] };
 type PreviewState = { phase: "idle" | "running" | "done" | "error"; items: PreviewItem[]; rejected: number; examples: { title: string; reasons: string[] }[]; checked: number; found: number; errors: number; message: string; testedPayload: string };
+
+/** A shop's collections as toggle buttons (its equivalent of rayons). */
+function CollectionPicker({ collections, value, onChange }: { collections: { path: string; label: string }[]; value: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {collections.map((c) => {
+        const on = value.includes(c.path);
+        return (
+          <button key={c.path} type="button" aria-pressed={on} onClick={() => onChange(on ? value.filter((p) => p !== c.path) : [...value, c.path])}
+            className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-tag ${on ? "border-brand-600 bg-brand-50 text-brand-700" : "border-paper-line bg-paper text-ink hover:border-brand-300"}`}>
+            {c.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const numOrNull = (s: string): number | null => {
   if (s.trim() === "") return null;
@@ -181,6 +199,7 @@ export function CriterionForm({
             <p className="mb-1 text-sm font-medium text-ink">Rayons à surveiller</p>
             <p className="mb-2 text-xs text-ink-mute">Facultatif. Les rayons dépendent de la boutique choisie.</p>
             {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
+            {d.shopId === "urban-jungle-ma" && <CollectionPicker collections={URBAN_JUNGLE_COLLECTIONS} value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Prix maximum (MAD)" htmlFor="quick-max-price"><input id="quick-max-price" className={input} inputMode="decimal" {...money("maxPrice")} /></Field>
@@ -219,8 +238,9 @@ export function CriterionForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <p className="mb-1 block text-sm font-medium text-ink">Rayons à surveiller</p>
-            <p className="mb-2 text-xs text-ink-mute">Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche parcourt les pages promos configurées.</p>
+            <p className="mb-2 text-xs text-ink-mute">{d.shopId === "urban-jungle-ma" ? "Choisissez des collections Urban Jungle. Sans collection, la recherche parcourt les soldes." : "Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche parcourt les pages promos configurées."}</p>
             {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
+            {d.shopId === "urban-jungle-ma" && <CollectionPicker collections={URBAN_JUNGLE_COLLECTIONS} value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
             {e["filters.categoryPaths"] && <p className="mt-1 text-xs text-promo">{e["filters.categoryPaths"]}</p>}
             <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
               <summary className="cursor-pointer text-xs font-medium text-ink-soft">Coller une URL ou un chemin exact (filtres pointure, genre…)</summary>

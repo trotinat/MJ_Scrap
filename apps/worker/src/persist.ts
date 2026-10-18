@@ -90,6 +90,10 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
   if (o.source === "detail") {
     updateSet.specs = { ...existingProduct?.specs, ...specs };
     updateSet.rawSpecs = { ...existingProduct?.rawSpecs, ...o.rawSpecs };
+  } else if (Object.keys(o.rawSpecs).length) {
+    // Listing data that proves attributes (Shopify feeds) is a complete snapshot: sold-out sizes must not linger.
+    updateSet.specs = specs;
+    updateSet.rawSpecs = o.rawSpecs;
   }
   const [product] = await tx
     .insert(products)

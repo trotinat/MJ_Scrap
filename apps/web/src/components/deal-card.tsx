@@ -6,6 +6,7 @@ import { CheckCheck, TrendingDown } from "lucide-react";
 import { DEAL_CLASS_LABELS, type DealClass, type Highlight } from "@mdw/shared";
 import { cx, StockBadge } from "./ui";
 import { ProductGallery } from "./product-gallery";
+import { shopLogo } from "./shop-brand-icon";
 import { formatMad } from "@/lib/format";
 
 export interface DealCardData {
@@ -56,7 +57,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
   const profileTags = (d.highlights ?? []).filter((h) => h.tone === "profile");
   const host = new URL(d.url).hostname.replace(/^www\./, "");
   const source = d.shopName ?? (host === "marjanemall.ma" ? "Marjane Mall" : host);
-  const isMarjane = host === "marjanemall.ma" || d.shopName?.trim().toLowerCase() === "marjane mall";
+  const logo = shopLogo(d.shopName, d.url);
   return (
     <article
       className={cx(
@@ -88,7 +89,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
       </div>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-1.5 sm:gap-2", big ? "p-3.5 sm:p-5" : "p-3 sm:p-3.5")}>
-        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{isMarjane ? <Image src="/brands/marjane-mark.png" alt="Marjane Mall" width={32} height={32} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div><div className="flex shrink-0 items-center gap-2">{d.stockStatus && <StockBadge stock={d.stockStatus} />}<ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 rounded-xl px-2.5 py-2" /></div></div>
+        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{logo ? <Image src={logo.src} alt={logo.alt} title={logo.alt} width={32} height={32} unoptimized={logo.src.endsWith(".svg")} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div><div className="flex shrink-0 items-center gap-2">{d.stockStatus && <StockBadge stock={d.stockStatus} />}<ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 rounded-xl px-2.5 py-2" /></div></div>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100

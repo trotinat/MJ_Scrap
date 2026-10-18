@@ -23,7 +23,7 @@ import {
 } from "@mdw/database";
 import { AccessBlockedError, detectBrand, extractModelRef, RobotsDisallowedError, type SiteAdapter } from "@mdw/scraper";
 import { decideNotification, evaluate, USER_NOTIFY_EVENTS, type PreviousMatchState } from "@mdw/scoring";
-import { anyPhraseMatches, madToCents, matchesFashionType, withProfileConstraints, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
+import { anyPhraseMatches, fitsUrbanJungleProfile, madToCents, matchesFashionType, OUT_OF_PROFILE_REASON, URBAN_JUNGLE_SHOP_ID, withProfileConstraints, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { enqueueNotification, formatDealMessage, processOutbox, type TelegramClient } from "@mdw/notifications";
 import { applyMissingPolicy, markOfferGone, saveObservation, type OfferObservation } from "./persist";
 import type { Logger } from "./logger";
@@ -125,10 +125,10 @@ function fromListing(i: ListingItem, categoryPath: string | null): OfferObservat
     originalPriceCents: i.originalPriceCents,
     advertisedDiscountPct: i.advertisedDiscountPct,
     seller: i.seller,
-    stock: "unknown",
+    stock: i.stock ?? "unknown",
     rating: i.rating,
     reviewCount: i.reviewCount,
-    rawSpecs: {},
+    rawSpecs: i.rawSpecs ?? {},
     categoryPath,
     listingPath: i.listingPath,
     source: "listing",
@@ -288,6 +288,10 @@ async function collect(
   // Only the user's own searches trigger alerts; recommended/promo criteria are
   // still evaluated (dashboard) but never notify.
   const userCriterionIds = await listUserCriterionIds(db);
+  // Urban Jungle searches only match products that fit their owner's shopper profile.
+  const urbanJungleProfiles = shopId === URBAN_JUNGLE_SHOP_ID
+    ? new Map(await Promise.all(criteria.map(async (c) => [c.id, await getUserProfile(db, c.ownerId!)] as const)))
+    : null;
 
   /* 1. Discover listings ---------------------------------------------------- */
   const dealPaths = new Set(settings.dealPagePaths);
@@ -386,7 +390,11 @@ async function collect(
       const previousMatches = await tx.select().from(dealMatches).where(eq(dealMatches.offerId,saved.offerId)).for("update");
       const byCriterion = new Map(previousMatches.map(m=>[m.criterionId,m]));
       for (const criterion of criteria) {
-        const ev = evaluate(criterion, saved.matchable, saved.facts, settings);
+        let ev = evaluate(criterion, saved.matchable, saved.facts, settings);
+        const ujProfile = urbanJungleProfiles?.get(criterion.id);
+        if (ev.isMatch && ujProfile && !fitsUrbanJungleProfile({ title: saved.matchable.title, brand: saved.matchable.brand, rawSpecs: saved.matchable.rawSpecs, categoryPath: saved.matchable.categoryPath }, ujProfile)) {
+          ev = { ...ev, isMatch: false, failedReasons: [...ev.failedReasons, OUT_OF_PROFILE_REASON] };
+        }
         const prevRow = byCriterion.get(criterion.id);
         // Only keep rows for products that are relevant to this criterion.
         if (!ev.isMatch && !prevRow && !verifiedCriterionIds?.has(criterion.id)) continue;

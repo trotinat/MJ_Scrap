@@ -20,6 +20,9 @@ export interface ListingItem {
   brand?: string | null;
   /** "Livraison rapide" flag from the site's data, when available. */
   expressDelivery?: boolean | null;
+  /** Stock and attributes (sizes, gender…) when the listing data itself proves them. */
+  stock?: StockStatus;
+  rawSpecs?: Record<string, string>;
   /** Listing path where the card was seen (used as category scope). */
   listingPath: string;
 }

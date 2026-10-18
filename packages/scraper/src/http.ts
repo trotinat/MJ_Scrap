@@ -9,6 +9,9 @@ export interface FetcherOptions {
   timeoutMs: number;
   maxRetries: number;
   respectRobots: boolean;
+  /** Shop origin and hosts; default to Marjane Mall. */
+  origin?: string;
+  allowedHosts?: readonly string[];
   /** Injected for tests. */
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -81,25 +84,33 @@ export class PoliteFetcher {
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
+  private readonly origin: string;
+  private readonly hosts: ReadonlySet<string> | undefined;
   requestCount = 0;
 
   constructor(private readonly opts: FetcherOptions) {
     this.fetchImpl = opts.fetchImpl ?? ((...a) => fetch(...a));
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = opts.now ?? (() => Date.now());
+    this.origin = opts.origin ?? SITE_ORIGIN;
+    this.hosts = opts.allowedHosts ? new Set(opts.allowedHosts) : undefined;
+  }
+
+  private allowed(url: string): URL {
+    return assertAllowedUrl(url, this.hosts);
   }
 
   async loadRobots(): Promise<RobotsRules> {
     if (this.robots) return this.robots;
     if (!this.opts.respectRobots) return (this.robots = RobotsRules.allowAll());
     try {
-      const res = await this.rawGet(`${SITE_ORIGIN}/robots.txt`);
+      const res = await this.rawGet(`${this.origin}/robots.txt`);
       if (res.status >= 200 && res.status < 300) {
         this.robots = RobotsRules.parse(res.body, this.opts.userAgent);
       } else if (res.status >= 400 && res.status < 500) {
         this.robots = RobotsRules.allowAll(); // RFC 9309: 4xx => no restrictions
       } else {
-        throw new HttpError(`robots.txt indisponible (HTTP ${res.status})`, res.status, `${SITE_ORIGIN}/robots.txt`);
+        throw new HttpError(`robots.txt indisponible (HTTP ${res.status})`, res.status, `${this.origin}/robots.txt`);
       }
     } catch (err) {
       // RFC 9309: if robots.txt is unreachable, assume complete disallow.
@@ -109,7 +120,7 @@ export class PoliteFetcher {
   }
 
   async get(url: string): Promise<FetchResult> {
-    const u = assertAllowedUrl(url);
+    const u = this.allowed(url);
     const robots = await this.loadRobots();
     const pathQuery = u.pathname + u.search;
     if (!robots.isAllowed(pathQuery)) throw new RobotsDisallowedError(pathQuery);
@@ -174,7 +185,7 @@ export class PoliteFetcher {
       if (hop >= 5) throw new HttpError('Trop de redirections', res.status, current);
       const location = res.headers.get('location');
       if (!location) break;
-      const next = assertAllowedUrl(new URL(location, current).toString());
+      const next = this.allowed(new URL(location, current).toString());
       if (this.robots && !this.robots.isAllowed(next.pathname + next.search)) throw new RobotsDisallowedError(next.pathname + next.search);
       await res.body?.cancel();
       await this.sleep(this.opts.minDelayMs);
@@ -183,7 +194,7 @@ export class PoliteFetcher {
       current = next.toString();
       }
       // Redirects must stay on the allowed host.
-      if (res.url) assertAllowedUrl(res.url);
+      if (res.url) this.allowed(res.url);
       const body = await res.text();
       const ra = res.headers.get("retry-after");
       const retryAfterMs = ra ? (Number.isFinite(Number(ra)) ? Number(ra) * 1000 : Math.max(0, Date.parse(ra) - Date.now())) : null;

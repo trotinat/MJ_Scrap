@@ -1,7 +1,7 @@
 import { getAppSettings, getDb, getUserProfile, requireUserShop, MARJANE_SHOP_ID } from "@mdw/database";
 import { evaluate } from "@mdw/scoring";
-import { configureProxyFromEnv, MarjaneAdapter } from "@mdw/scraper";
-import { anyPhraseMatches, criterionInputSchema, extractSpecs, normalizeRef, withProfileConstraints, type MatchableProduct, type PriceHistoryFacts } from "@mdw/shared";
+import { configureProxyFromEnv, createUrbanJungleAdapter, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
+import { anyPhraseMatches, criterionInputSchema, extractSpecs, fitsUrbanJungleProfile, normalizeRef, OUT_OF_PROFILE_REASON, withProfileConstraints, type MatchableProduct, type PriceHistoryFacts } from "@mdw/shared";
 import { requireUser } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ message: parsed.error.issues[0]?.message ?? "Recherche invalide." }, { status: 400 });
   try { await requireUserShop(getDb(), user.id, parsed.data.shopId); }
   catch { return Response.json({ message: "Boutique indisponible pour ce compte." }, { status: 403 }); }
-  if (parsed.data.shopId !== MARJANE_SHOP_ID) return Response.json({ message: "Le test de cette boutique sera disponible avec son collecteur." }, { status: 409 });
+  const urbanJungle = parsed.data.shopId === URBAN_JUNGLE.shopId;
+  if (parsed.data.shopId !== MARJANE_SHOP_ID && !urbanJungle) return Response.json({ message: "Le test de cette boutique sera disponible avec son collecteur." }, { status: 409 });
   if (running) return Response.json({ message: "Un test est déjà en cours. Réessayez dans un instant." }, { status: 429 });
   running = true;
 
@@ -34,23 +35,28 @@ export async function POST(request: Request) {
       const send = (event: object) => {
         if (!cancelled && !request.signal.aborted) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
-      let adapter: MarjaneAdapter | undefined;
+      let adapter: SiteAdapter | undefined;
       let checked = 0;
       let found = 0;
       let rejected = 0;
       let errors = 0;
       try {
         const settings = await getAppSettings(getDb());
-        const criterion = withProfileConstraints({ id: "preview", ...parsed.data }, await getUserProfile(getDb(), user.id));
-        const paths = (criterion.filters.categoryPaths.length ? criterion.filters.categoryPaths : settings.dealPagePaths).slice(0, 2);
+        const profile = await getUserProfile(getDb(), user.id);
+        const criterion = withProfileConstraints({ id: "preview", ...parsed.data }, profile);
+        const defaultPaths = urbanJungle ? URBAN_JUNGLE.dealPagePaths : settings.dealPagePaths;
+        const paths = (criterion.filters.categoryPaths.length ? criterion.filters.categoryPaths : defaultPaths).slice(0, 2);
         if (!paths.length) throw new Error("Choisissez au moins un rayon à parcourir.");
         configureProxyFromEnv();
-        adapter = new MarjaneAdapter({
+        const http = {
           userAgent: process.env.SCRAPER_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
           minDelayMs: settings.requestDelayMs,
           timeoutMs: 25_000,
           maxRetries: 1,
           respectRobots: true,
+        };
+        adapter = urbanJungle ? createUrbanJungleAdapter(http) : new MarjaneAdapter({
+          ...http,
           renderMode: "auto",
           renderTimeoutMs: 40_000,
           renderChannel: "auto",
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
             send({ type: "listing", path, count: listing.items.length });
             let checkedInPath = 0;
             for (const item of listing.items) {
-              if (cancelled || request.signal.aborted || checked >= 16 || checkedInPath >= 8) break;
+              if (cancelled || request.signal.aborted || checked >= 16 || checkedInPath >= (urbanJungle ? 16 : 8)) break;
               if (seen.has(item.url)) continue;
               seen.add(item.url);
               // A title can disqualify a card; the detail page alone can confirm a match.
@@ -77,7 +83,10 @@ export async function POST(request: Request) {
               checked++;
               checkedInPath++;
               try {
-                const result = await adapter.fetchProduct(item.url);
+                // Urban Jungle's feed already proves price, stock and sizes: no product page request needed.
+                const result = urbanJungle && item.priceCents !== null
+                  ? { kind: "ok" as const, detail: { ...item, brand: item.brand ?? null, priceCents: item.priceCents, modelRef: null, stock: item.stock ?? "unknown" as const, rawSpecs: item.rawSpecs ?? {} } }
+                  : await adapter.fetchProduct(item.url);
                 if (result.kind === "error") { errors++; send({ type: "progress", checked, found, errors }); continue; }
                 if (result.kind !== "ok") { send({ type: "progress", checked, found, errors }); continue; }
                 const d = result.detail;
@@ -89,6 +98,10 @@ export async function POST(request: Request) {
                   rawSpecs: d.rawSpecs, specs: extractSpecs(d.title, d.rawSpecs),
                 };
                 const verdict = evaluate(criterion, product, noHistory, settings);
+                if (verdict.isMatch && urbanJungle && !fitsUrbanJungleProfile({ title: d.title, brand: d.brand, rawSpecs: d.rawSpecs }, profile)) {
+                  verdict.isMatch = false;
+                  verdict.failedReasons = [OUT_OF_PROFILE_REASON];
+                }
                 if (verdict.isMatch) {
                   found++;
                   send({ type: "match", item: {

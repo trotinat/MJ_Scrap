@@ -11,5 +11,6 @@ export * from "./profile";
 export * from "./media";
 export * from "./accuracy";
 export * from "./promotion-profile";
+export * from "./urban-jungle";
 
 export * from './basket';

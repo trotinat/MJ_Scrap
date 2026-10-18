@@ -13,14 +13,14 @@ export class DisallowedUrlError extends Error {
   }
 }
 
-export function assertAllowedUrl(raw: string): URL {
+export function assertAllowedUrl(raw: string, hosts: ReadonlySet<string> = ALLOWED_HOSTS): URL {
   let u: URL;
   try {
     u = new URL(raw);
   } catch {
     throw new DisallowedUrlError(raw);
   }
-  if (u.protocol !== "https:" || !ALLOWED_HOSTS.has(u.hostname) || u.username || u.password || (u.port && u.port !== "443")) {
+  if (u.protocol !== "https:" || !hosts.has(u.hostname) || u.username || u.password || (u.port && u.port !== "443")) {
     throw new DisallowedUrlError(raw);
   }
   return u;

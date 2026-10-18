@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import {
   dealMatches,
   listUserShops,
@@ -16,7 +16,7 @@ import {
   searchCriteria,
   workerStatus,
 } from "@mdw/database";
-import { DEFAULT_SCRAPE_TIMES, nextScheduledRuns, fitsPromotionProfile } from "@mdw/shared";
+import { DEFAULT_SCRAPE_TIMES, nextScheduledRuns, fitsPromotionProfile, fitsUrbanJungleProfile, URBAN_JUNGLE_SHOP_ID } from "@mdw/shared";
 import { requireUser } from "./session";
 
 const db = () => getDb();
@@ -223,8 +223,15 @@ export async function shopDiscovery(opts: { shopId?: string; q?: string; sort?: 
   const invalidShop = Boolean(opts.shopId && !allowed.includes(opts.shopId));
   if (!allowed.length || invalidShop) return { shops: stats.rows, rows: [], total: 0, page: 1, pages: 1, invalidShop };
 
+  const hidden = await offersHiddenByProfile(userId, allowed, since);
+  for (const s of stats.rows) {
+    const mine = hidden.filter((h) => h.shop_id === s.shop_id);
+    s.offers = Number(s.offers) - mine.length;
+    s.fresh = Number(s.fresh) - mine.filter((h) => h.fresh).length;
+  }
   const where = [inArray(productOffers.shopId, allowed), eq(productOffers.status, "active"), isNotNull(productOffers.currentPriceCents)];
   if (opts.shopId) where.push(eq(productOffers.shopId, opts.shopId));
+  if (hidden.length) where.push(notInArray(productOffers.id, hidden.map((h) => h.id)));
   if (opts.q?.trim()) where.push(sql`${productOffers.title} ilike ${`%${opts.q.trim().replace(/[%_\\]/g, (m) => `\\${m}`)}%`}`);
   const filter = and(...where);
   const pageSize = 24;
@@ -247,6 +254,20 @@ export async function shopDiscovery(opts: { shopId?: string; q?: string; sort?: 
   ]);
   const countTotal = Number(total?.n ?? 0);
   return { shops: stats.rows, rows, total: countTotal, page, pages: Math.max(1, Math.ceil(countTotal / pageSize)), invalidShop: false };
+}
+
+/** Boutiques browsed through the shopper profile: their offers that do not fit it stay out of the Boutiques catalogue. */
+export const PROFILE_FILTERED_SHOPS = [URBAN_JUNGLE_SHOP_ID];
+
+async function offersHiddenByProfile(userId: string, allowedShops: string[], since: Date) {
+  const shopIds = PROFILE_FILTERED_SHOPS.filter((id) => allowedShops.includes(id));
+  if (!shopIds.length) return [];
+  const profile = (await getUserSettings(db(), userId)).shopperProfile;
+  const rows = await db().execute<{ id: string; shop_id: string; title: string; brand: string | null; raw_specs: Record<string, string> | null; category_path: string | null; fresh: boolean }>(sql`
+    select o.id, o.shop_id, o.title, p.brand, p.raw_specs, p.category_path, o.last_success_at >= ${since} as fresh
+    from product_offers o join products p on p.id = o.product_id
+    where o.shop_id in (${sql.join(shopIds.map((id) => sql`${id}`), sql`, `)}) and o.status = 'active' and o.current_price_cents is not null`);
+  return rows.rows.filter((r) => !fitsUrbanJungleProfile({ title: r.title, brand: r.brand, rawSpecs: r.raw_specs ?? {}, categoryPath: r.category_path }, profile));
 }
 
 /* ----------------------------------------------------------------- product */

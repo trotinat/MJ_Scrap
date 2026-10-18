@@ -1,22 +1,32 @@
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { scrapingRuns, getAppSettings, shops, SCRAPE_LOCK_KEY, withAdvisoryLock, type Db } from "@mdw/database";
-import { configureProxyFromEnv, MarjaneAdapter } from "@mdw/scraper";
+import { configureProxyFromEnv, createUrbanJungleAdapter, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
 import { TelegramClient, telegramConfigFromEnv } from "@mdw/notifications";
 import type { WorkerConfig } from "./config";
 import type { Logger } from "./logger";
 import { runScrape, type PipelineDeps, type RunOutcome } from "./pipeline";
 
-export async function buildAdapter(db: Db, config: WorkerConfig, shopId = "marjane-mall"): Promise<MarjaneAdapter> {
-  if (shopId !== "marjane-mall") throw new Error(`Aucun collecteur branché pour ${shopId}.`);
+/** Boutiques with a connector; a shop row without one cannot be collected. */
+const CONNECTORS: Record<string, { dealPagePaths?: string[] }> = {
+  "marjane-mall": {},
+  [URBAN_JUNGLE.shopId]: { dealPagePaths: URBAN_JUNGLE.dealPagePaths },
+};
+
+export async function buildAdapter(db: Db, config: WorkerConfig, shopId = "marjane-mall"): Promise<SiteAdapter> {
+  if (!CONNECTORS[shopId]) throw new Error(`Aucun collecteur branché pour ${shopId}.`);
   configureProxyFromEnv();
   const settings = await getAppSettings(db);
-  return new MarjaneAdapter({
+  const http = {
     userAgent: config.SCRAPER_USER_AGENT,
     minDelayMs: settings.requestDelayMs,
     timeoutMs: config.REQUEST_TIMEOUT_MS,
     maxRetries: config.MAX_RETRIES,
     respectRobots: config.RESPECT_ROBOTS ?? true,
+  };
+  if (shopId === URBAN_JUNGLE.shopId) return createUrbanJungleAdapter(http);
+  return new MarjaneAdapter({
+    ...http,
     renderMode: config.RENDER_MODE,
     renderTimeoutMs: config.RENDER_TIMEOUT_MS,
     renderChannel: config.RENDER_BROWSER_CHANNEL,
@@ -33,7 +43,7 @@ export function buildTelegram(): TelegramClient | null {
  * as the request delay are re-read at every run, no restart needed).
  */
 export function lazyDeps(db: Db, pool: pg.Pool, config: WorkerConfig, logger: Logger, shopId = "marjane-mall"): PipelineDeps {
-  let adapterPromise: Promise<MarjaneAdapter> | null = null;
+  let adapterPromise: Promise<SiteAdapter> | null = null;
   const getAdapter = () => (adapterPromise ??= buildAdapter(db, config, shopId));
   return {
     db,
@@ -43,6 +53,7 @@ export function lazyDeps(db: Db, pool: pg.Pool, config: WorkerConfig, logger: Lo
     workerId: config.WORKER_ID,
     adapter: {
       shopId,
+      dealPagePaths: CONNECTORS[shopId]?.dealPagePaths,
       get requestCount() {
         return 0;
       },
