@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowDownRight, LineChart, Package, TrendingDown, Trophy } from "lucide-react";
-import { btn, Card, cx, EmptyState, input, PageHeader } from "@/components/ui";
+import { btn, Card, cx, EmptyState, input, PageHeader, ProductImage, StatCard, Badge } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { priceHistorySummary, recentPriceChanges, trackedOffers, type TrackedSort } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, formatPct, relativeTime } from "@/lib/format";
@@ -14,147 +14,134 @@ const SORTS: { value: TrackedSort; label: string }[] = [
   { value: "observed", label: "Le plus de relevés" },
 ];
 
-function Stat({ icon: Icon, label, value, hint }: { icon: typeof Package; label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-paper-line bg-paper-card p-4">
-      <div className="flex items-center gap-2 text-ink-mute">
-        <Icon className="h-4 w-4" aria-hidden />
-        <span className="text-xs font-medium">{label}</span>
-      </div>
-      <p className="num mt-1 font-display text-2xl font-bold text-ink">{value}</p>
-      {hint && <p className="text-xs text-ink-mute">{hint}</p>}
-    </div>
-  );
-}
-
 export default async function PriceHistoryPage({ searchParams }: { searchParams: Promise<{ q?: string; sort?: string }> }) {
   const sp = await searchParams;
   const q = sp.q?.slice(0, 100) || undefined;
   const sort = (SORTS.some((s) => s.value === sp.sort) ? sp.sort : "recent") as TrackedSort;
   const [changes, offers, summary] = await Promise.all([recentPriceChanges(q), trackedOffers({ q, sort }), priceHistorySummary(q)]);
+  const dropCount = changes.filter((c) => c.price_cents < c.prev).length;
 
   return (
     <>
-      <PageHeader title="Historique des prix" description="Variations calculées à partir des relevés de l'application uniquement (pas de prix antérieur au début du suivi)." />
+      <PageHeader title="Historique des prix" description="Les baisses vérifiées d’abord, calculées à partir de nos propres relevés." />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon={Package} label="Offres suivies" value={summary.tracked} />
-        <Stat icon={LineChart} label="Relevés enregistrés" value={summary.observations} />
-        <Stat icon={TrendingDown} label="Baisses (7 derniers jours)" value={summary.drops7d} />
-        <Stat icon={Trophy} label="À leur prix le plus bas" value={summary.atLowest} hint="prix actuel ≤ plus bas observé" />
+        <StatCard icon={TrendingDown} label="Baisses · 7 jours" value={summary.drops7d} tone="green" />
+        <StatCard icon={Trophy} label="Au prix le plus bas" value={summary.atLowest} tone="blue" hint="Prix actuel vs. plus bas observé" />
+        <StatCard icon={Package} label="Offres suivies" value={summary.tracked} />
+        <StatCard icon={LineChart} label="Relevés enregistrés" value={summary.observations.toLocaleString("fr-FR")} />
       </div>
 
-      <form method="get" className="mb-6 flex flex-wrap gap-2">
-        <input name="q" defaultValue={q} placeholder="Filtrer par nom de produit…" className={cx(input, "max-w-md flex-1 basis-48")} aria-label="Recherche" />
-        <select name="sort" defaultValue={sort} className={cx(input, "!w-auto")} aria-label="Tri des offres suivies">
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              Trier : {s.label}
-            </option>
-          ))}
+      <form method="get" className="mb-6 grid gap-2 rounded-[1.35rem] border border-paper-line bg-paper-card p-3 card-soft sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+        <label className="sr-only" htmlFor="price-history-search">Chercher un produit</label>
+        <input id="price-history-search" name="q" defaultValue={q} placeholder="Chercher un produit…" className={cx(input, "min-h-11 text-base")} />
+        <label className="sr-only" htmlFor="tracked-sort">Trier les offres suivies</label>
+        <select id="tracked-sort" name="sort" defaultValue={sort} className={cx(input, "min-h-11 text-base")}>
+          {SORTS.map((s) => <option key={s.value} value={s.value}>Offres suivies · {s.label}</option>)}
         </select>
-        <button type="submit" className={btn.primary}>
-          Filtrer
-        </button>
+        <button type="submit" className={cx(btn.primary, "w-full sm:w-auto")}>Afficher</button>
       </form>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="Dernières variations de prix observées">
+      <div className="grid gap-6">
+        <Card title="Variations récentes" actions={<Badge tone="green">{dropCount} {dropCount === 1 ? "baisse" : "baisses"} en tête</Badge>}>
+          <p className="-mt-2 mb-4 text-sm text-ink-mute">Une baisse apparaît après au moins deux relevés comparables. Les remises annoncées par la boutique ne sont pas utilisées ici.</p>
           {changes.length === 0 ? (
             <EmptyState icon={LineChart} title="Aucune variation observée">
-              Une variation apparaît dès que deux relevés successifs d&apos;une offre diffèrent.
+              Une variation apparaîtra dès que deux relevés successifs d&apos;une offre différeront.
             </EmptyState>
-          ) : (
-            <div className="max-h-[36rem] overflow-auto">
+          ) : <>
+            <ul className="grid gap-3 md:hidden">
+              {changes.map((c, i) => {
+                const delta = c.price_cents - c.prev;
+                const pct = (delta / c.prev) * 100;
+                const down = delta < 0;
+                return <li key={`${c.offer_id}-${i}`}>
+                  <Link href={`/produits/${c.offer_id}`} className="block rounded-2xl border border-paper-line bg-paper-card p-3 transition-colors hover:border-brand-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600">
+                    <div className="flex gap-3">
+                      <ProductImage src={c.image_url} alt="" className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-xl" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge tone={down ? "green" : "red"}>{down ? <><ArrowDownRight className="h-3.5 w-3.5" aria-hidden /> Baisse mesurée</> : "Hausse"}</Badge>
+                          <span className="text-xs text-ink-mute">{relativeTime(c.observed_at)}</span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-ink">{c.title}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-2 border-t border-paper-line pt-3">
+                      <div>
+                        <p className="text-xs text-ink-mute">{formatMad(c.prev)} <span aria-hidden>→</span> <span className="font-semibold text-ink">{formatMad(c.price_cents)}</span></p>
+                        <p className="mt-0.5 text-xs text-ink-mute">{formatMoroccoTime(c.observed_at)}</p>
+                      </div>
+                      <div className={`shrink-0 text-right font-display font-bold ${down ? "text-proof" : "text-promo"}`}>
+                        <p className="text-base">{down ? "−" : "+"}{formatMad(Math.abs(delta))}</p>
+                        <p className="text-xs">{formatPct(pct)}</p>
+                      </div>
+                    </div>
+                  </Link>
+                </li>;
+              })}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="data">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Produit</th>
-                    <th>Avant</th>
-                    <th>Après</th>
-                    <th>Variation</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Évolution</th><th>Produit</th><th>Avant</th><th>Maintenant</th><th>Écart</th></tr></thead>
                 <tbody>
                   {changes.map((c, i) => {
                     const pct = ((c.price_cents - c.prev) / c.prev) * 100;
-                    return (
-                      <tr key={`${c.offer_id}-${i}`}>
-                        <td className="whitespace-nowrap">{formatMoroccoTime(c.observed_at)}</td>
-                        <td>
-                          <Link href={`/produits/${c.offer_id}`} className="line-clamp-2 hover:text-ink">
-                            {c.title}
-                          </Link>
-                        </td>
-                        <td className="whitespace-nowrap">{formatMad(c.prev)}</td>
-                        <td className="whitespace-nowrap font-medium">{formatMad(c.price_cents)}</td>
-                        <td className={`whitespace-nowrap font-medium ${pct < 0 ? "text-proof" : "text-promo"}`}>{formatPct(pct)}</td>
-                      </tr>
-                    );
+                    const down = c.price_cents < c.prev;
+                    return <tr key={`${c.offer_id}-${i}`}>
+                      <td className="whitespace-nowrap text-xs text-ink-mute">{formatMoroccoTime(c.observed_at)}</td>
+                      <td><Link href={`/produits/${c.offer_id}`} className="line-clamp-2 hover:text-ink">{c.title}</Link></td>
+                      <td className="whitespace-nowrap">{formatMad(c.prev)}</td>
+                      <td className="whitespace-nowrap font-medium">{formatMad(c.price_cents)}</td>
+                      <td className={`whitespace-nowrap font-semibold ${down ? "text-proof" : "text-promo"}`}>{formatMad(Math.abs(c.price_cents - c.prev))} · {formatPct(pct)}</td>
+                    </tr>;
                   })}
                 </tbody>
               </table>
             </div>
-          )}
+          </>}
         </Card>
 
-        <Card title="Offres suivies">
-          {offers.length === 0 ? (
-            <EmptyState icon={Package} title="Aucune offre suivie" />
-          ) : (
-            <div className="max-h-[36rem] overflow-auto">
+        <Card title="Toutes les offres suivies">
+          {offers.length === 0 ? <EmptyState icon={Package} title="Aucune offre suivie" /> : <>
+            <ul className="grid gap-3 md:hidden">
+              {offers.map((o) => {
+                const atLowest = o.current_price_cents !== null && o.min_price_cents !== null && o.current_price_cents <= o.min_price_cents;
+                const abovePct = o.current_price_cents !== null && o.min_price_cents && o.min_price_cents > 0 ? ((o.current_price_cents - o.min_price_cents) / o.min_price_cents) * 100 : null;
+                return <li key={o.id} className="rounded-2xl border border-paper-line bg-paper-card p-4">
+                  <Link href={`/produits/${o.id}`} className="line-clamp-2 font-semibold text-ink hover:text-brand-700">{o.title}</Link>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-display text-xl font-bold text-ink">{formatMad(o.current_price_cents)}</p>
+                      <p className="mt-0.5 text-xs text-ink-mute">Plus bas {formatMad(o.min_price_cents)}</p>
+                    </div>
+                    <div className="flex min-w-0 flex-col items-end gap-1">
+                      <Sparkline values={o.spark} width={96} height={28} />
+                      {atLowest ? <Badge tone="green"><Trophy className="h-3 w-3" aria-hidden /> Au plus bas</Badge> : abovePct !== null && abovePct >= 1 ? <span className="text-xs text-ink-mute">+{Math.round(abovePct)} % vs. plus bas</span> : null}
+                    </div>
+                  </div>
+                  <p className="mt-3 border-t border-paper-line pt-2 text-xs text-ink-mute">{o.observations.toLocaleString("fr-FR")} relevés · dernier {relativeTime(o.last_success_at)}{o.status !== "active" ? ` · ${o.status === "missing" ? "plus listé" : "indisponible"}` : ""}</p>
+                </li>;
+              })}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="data">
-                <thead>
-                  <tr>
-                    <th>Produit</th>
-                    <th>Évolution</th>
-                    <th>Prix actuel</th>
-                    <th>Plus bas</th>
-                    <th>Relevés</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Produit</th><th>Évolution</th><th>Prix actuel</th><th>Plus bas</th><th>Relevés</th></tr></thead>
                 <tbody>
                   {offers.map((o) => {
-                    const atLowest =
-                      o.current_price_cents !== null && o.min_price_cents !== null && o.current_price_cents <= o.min_price_cents;
-                    const abovePct =
-                      o.current_price_cents !== null && o.min_price_cents && o.min_price_cents > 0
-                        ? ((o.current_price_cents - o.min_price_cents) / o.min_price_cents) * 100
-                        : null;
-                    return (
-                      <tr key={o.id}>
-                        <td>
-                          <Link href={`/produits/${o.id}`} className="line-clamp-2 hover:text-ink">
-                            {o.title}
-                          </Link>
-                          {o.status !== "active" && <span className="text-xs text-promo">{o.status === "missing" ? " · plus listé" : " · indisponible"}</span>}
-                          <span className="block text-xs text-ink-mute">Dernier relevé {relativeTime(o.last_success_at)}</span>
-                        </td>
-                        <td>
-                          <Sparkline values={o.spark} />
-                        </td>
-                        <td className="whitespace-nowrap">
-                          <span className="font-medium">{formatMad(o.current_price_cents)}</span>
-                          {atLowest ? (
-                            <span className="mt-0.5 flex w-fit items-center gap-1 rounded-full bg-proof px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                              <Trophy className="h-3 w-3" aria-hidden /> au plus bas
-                            </span>
-                          ) : abovePct && abovePct >= 1 ? (
-                            <span className="mt-0.5 flex w-fit items-center gap-0.5 text-[11px] text-ink-mute">
-                              <ArrowDownRight className="h-3 w-3" aria-hidden /> +{Math.round(abovePct)}% vs plus bas
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="whitespace-nowrap">{formatMad(o.min_price_cents)}</td>
-                        <td>{o.observations}</td>
-                      </tr>
-                    );
+                    const atLowest = o.current_price_cents !== null && o.min_price_cents !== null && o.current_price_cents <= o.min_price_cents;
+                    const abovePct = o.current_price_cents !== null && o.min_price_cents && o.min_price_cents > 0 ? ((o.current_price_cents - o.min_price_cents) / o.min_price_cents) * 100 : null;
+                    return <tr key={o.id}>
+                      <td><Link href={`/produits/${o.id}`} className="line-clamp-2 hover:text-ink">{o.title}</Link>{o.status !== "active" && <span className="text-xs text-promo">{o.status === "missing" ? " · plus listé" : " · indisponible"}</span>}<span className="block text-xs text-ink-mute">Dernier relevé {relativeTime(o.last_success_at)}</span></td>
+                      <td><Sparkline values={o.spark} /></td>
+                      <td className="whitespace-nowrap"><span className="font-medium">{formatMad(o.current_price_cents)}</span>{atLowest ? <span className="mt-0.5 flex w-fit items-center gap-1 rounded-full bg-proof px-1.5 py-0.5 text-[10px] font-semibold text-white"><Trophy className="h-3 w-3" aria-hidden /> au plus bas</span> : abovePct !== null && abovePct >= 1 ? <span className="mt-0.5 flex w-fit items-center gap-0.5 text-[11px] text-ink-mute"><ArrowDownRight className="h-3 w-3" aria-hidden /> +{Math.round(abovePct)}% vs plus bas</span> : null}</td>
+                      <td className="whitespace-nowrap">{formatMad(o.min_price_cents)}</td><td>{o.observations.toLocaleString("fr-FR")}</td>
+                    </tr>;
                   })}
                 </tbody>
               </table>
             </div>
-          )}
+          </>}
         </Card>
       </div>
     </>

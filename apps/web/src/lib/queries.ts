@@ -304,16 +304,20 @@ export async function recentPriceChanges(q?: string, limit = 100) {
     observed_at: string;
     min_price_cents: number | null;
     stock_status: string;
+    image_url: string | null;
   }>(sql`
-    select x.offer_id, o.title, o.seller, x.price_cents, x.prev, x.observed_at, o.min_price_cents, x.stock_status
+    select x.offer_id, o.title, o.seller, x.price_cents, x.prev, x.observed_at, o.min_price_cents, x.stock_status, p.image_url
     from (
       select ph.*, lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
       from price_history ph
     ) x
     join product_offers o on o.id = x.offer_id
+    join products p on p.id = o.product_id
     where x.prev is not null and x.prev <> x.price_cents ${filter}
       and exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active)
-    order by x.observed_at desc
+    order by (x.price_cents < x.prev) desc,
+      case when x.prev > 0 and x.price_cents < x.prev then (x.prev - x.price_cents)::numeric / x.prev end desc nulls last,
+      x.observed_at desc
     limit ${limit}`);
   return res.rows;
 }
@@ -382,8 +386,8 @@ export async function priceHistorySummary(q?: string) {
          select ph.offer_id, ph.price_cents, ph.observed_at,
                 lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
          from price_history ph join product_offers o on o.id = ph.offer_id
-         where ph.observed_at > now() - interval '7 days' ${access} ${filter}
-       ) x where x.prev is not null and x.price_cents < x.prev) as drops_7d`)).rows;
+         where true ${access} ${filter}
+       ) x where x.observed_at > now() - interval '7 days' and x.prev is not null and x.price_cents < x.prev) as drops_7d`)).rows;
   return {
     tracked: Number(row?.tracked ?? 0),
     observations: Number(row?.observations ?? 0),
