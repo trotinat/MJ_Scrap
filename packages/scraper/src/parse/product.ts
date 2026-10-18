@@ -20,7 +20,7 @@ interface JsonLdProduct {
   sku?: string;
   mpn?: string;
   brand?: string | { name?: string };
-  image?: string | string[] | { url?: string };
+  image?: string | { url?: string } | (string | { url?: string })[];
   offers?: JsonLdOffer | JsonLdOffer[];
   aggregateRating?: { ratingValue?: number | string; reviewCount?: number | string; ratingCount?: number | string };
 }
@@ -213,13 +213,20 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
   const brand = detectBrand(title, explicitBrand);
   const modelRef = extractModelRef(title, { ...rawSpecs, ...(ld?.mpn ? { Référence: ld.mpn } : {}) });
 
-  const ldImage = Array.isArray(ld?.image) ? ld?.image[0] : typeof ld?.image === "object" ? ld?.image?.url : ld?.image;
-  const imageUrl =
-    safeHttpUrl(ldImage, SITE_ORIGIN) ??
-    safeHttpUrl(data?.image, SITE_ORIGIN) ??
+  const ldImages = Array.isArray(ld?.image)
+    ? ld.image.map((image) => typeof image === "string" ? image : image && typeof image === "object" ? image.url : undefined)
+    : [typeof ld?.image === "string" ? ld.image : ld?.image?.url];
+  const fallbackImage =
     safeHttpUrl($('meta[property="og:image"]').attr("content"), SITE_ORIGIN) ??
     safeHttpUrl($('img[src*="/catalog/product"]').first().attr("src"), SITE_ORIGIN) ??
     safeHttpUrl($("main img").first().attr("src"), SITE_ORIGIN);
+  const imageUrls = [...new Set([
+    ...ldImages,
+    ...(data?.images ?? []),
+    data?.image,
+    fallbackImage,
+  ].map((image) => safeHttpUrl(image, SITE_ORIGIN)).filter((image): image is string => Boolean(image)))].slice(0, 12);
+  const imageUrl = imageUrls[0] ?? null;
 
   const breadcrumb = breadcrumbLd?.itemListElement?.length
     ? breadcrumbLd.itemListElement
@@ -240,6 +247,7 @@ export function parseProductPage(html: string, pageUrl: string): ProductDetail {
     brand,
     modelRef,
     imageUrl,
+    imageUrls,
     priceCents,
     originalPriceCents,
     advertisedDiscountPct,

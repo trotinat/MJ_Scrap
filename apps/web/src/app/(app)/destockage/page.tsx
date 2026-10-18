@@ -27,6 +27,7 @@ function toCard(r: FlashRow, profile: ShopperProfile): DealCardData {
     title: r.title,
     url: r.url,
     imageUrl: r.image_url,
+    imageUrls: r.image_urls,
     brand: r.brand,
     priceCents: r.current_price_cents,
     originalPriceCents: r.original_price_cents,

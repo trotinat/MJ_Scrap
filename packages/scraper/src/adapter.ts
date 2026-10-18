@@ -160,7 +160,10 @@ function mergeItems(primary: ListingItem[], fallback: ListingItem[]): ListingIte
   for (const i of fallback) {
     const p = out.get(i.url);
     if (!p) out.set(i.url, i);
-    else if (!p.imageUrl && i.imageUrl) p.imageUrl = i.imageUrl;
+    else {
+      if (!p.imageUrl && i.imageUrl) p.imageUrl = i.imageUrl;
+      p.imageUrls = [...new Set([...(p.imageUrls ?? []), ...(i.imageUrls ?? [])])];
+    }
   }
   return [...out.values()];
 }

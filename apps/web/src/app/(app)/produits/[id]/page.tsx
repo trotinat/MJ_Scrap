@@ -7,7 +7,8 @@ import { getDb, getUserSettings } from "@mdw/database";
 import { requireUser } from "@/lib/session";
 import { priceStats, historyFacts } from "@mdw/scoring";
 import { describeSpec, type NormalizedSpecs } from "@mdw/shared";
-import { Badge, btn, Card, FreshnessBadge, PageHeader, ProductImage, ScoreBadge, StockBadge } from "@/components/ui";
+import { Badge, btn, Card, FreshnessBadge, PageHeader, ScoreBadge, StockBadge } from "@/components/ui";
+import { ProductGallery } from "@/components/product-gallery";
 import { PriceChart } from "@/components/price-chart";
 import { ShareButton } from "@/components/share-button";
 import { offerDetail, similarModelOffers } from "@/lib/queries";
@@ -22,6 +23,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const [data, settings] = await Promise.all([offerDetail(id), getUserSettings(getDb(), user.id)]);
   if (!data) notFound();
   const { offer, product, history, matches, siblings } = data;
+  const galleryImages = [...new Set([...(product.imageUrls ?? []), product.imageUrl].filter((image): image is string => Boolean(image)))].slice(0, 8);
   const shopName = offer.shopId === "marjane-mall" ? "Marjane Mall" : new URL(offer.url).hostname.replace(/^www\./, "");
   const stats = priceStats(history.map((h) => ({ priceCents: h.priceCents, observedAt: h.observedAt })));
   const baseline = historyFacts(history.map(h=>({priceCents:h.priceCents,observedAt:h.observedAt})));
@@ -48,7 +50,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
-          <ProductImage src={product.imageUrl} alt={offer.title} className="h-56 w-full rounded-lg" />
+          <ProductGallery images={galleryImages} alt={offer.title} className="h-56 w-full rounded-lg" />
           <div className="mt-4 space-y-2 text-sm">
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-ink">{formatMad(offer.currentPriceCents)}</span>

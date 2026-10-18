@@ -56,6 +56,8 @@ export function embeddedDetail(html: string, slug: string) {
     return [{attributes:selected,priceCents:Math.round(price*100),stock:'unknown'}];
   });
   if (variants.length) specs['Variantes observées (stock à confirmer)'] = JSON.stringify(variants);
-  const image = product.media_gallery_entries?.find((p: any) => !p?.disabled && typeof p?.file === 'string')?.file;
-  return {amount: typeof amount === 'number' && Number.isFinite(amount) ? amount : null, old: typeof old === 'number' ? old : null, specs, brand: ext.brand_name as string | undefined, seller: ext.seller_name as string | undefined, image: image as string | undefined};
+  const images = Array.isArray(product.media_gallery_entries)
+    ? product.media_gallery_entries.filter((p: any) => !p?.disabled && typeof p?.file === 'string').map((p: any) => p.file as string)
+    : [];
+  return {amount: typeof amount === 'number' && Number.isFinite(amount) ? amount : null, old: typeof old === 'number' ? old : null, specs, brand: ext.brand_name as string | undefined, seller: ext.seller_name as string | undefined, image: images[0], images};
 }

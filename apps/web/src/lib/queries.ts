@@ -105,6 +105,7 @@ export type DealRow = {
   title: string;
   url: string;
   image_url: string | null;
+  image_urls: string[];
   brand: string | null;
   category_path: string | null;
   seller: string | null;
@@ -168,7 +169,7 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
     ${having}`;
 
   const rows = await db().execute<DealRow>(sql`
-    select o.id as offer_id, o.shop_id, sh.name as shop_name, p.id as product_id, o.title, o.url, p.image_url, p.brand, p.category_path, o.seller,
+    select o.id as offer_id, o.shop_id, sh.name as shop_name, p.id as product_id, o.title, o.url, p.image_url, p.image_urls, p.brand, p.category_path, o.seller,
       o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
       o.stock_status, o.status as offer_status, o.last_success_at, o.first_seen_at, prev.price_cents as prev_price_cents, o.min_price_cents,
       case when prev.price_cents > 0 then round(((o.current_price_cents - prev.price_cents)::numeric / prev.price_cents) * 1000) / 10 end::float as drop_pct,
@@ -292,7 +293,7 @@ export async function offersForCompare(ids: string[]) {
 
 /* ----------------------------------------------------------- price history */
 
-export async function recentPriceChanges(q?: string, limit = 100) {
+export async function recentPriceChanges(q?: string, limit = 50) {
   const userId = (await requireUser()).id;
   const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
   const res = await db().execute<{
@@ -305,8 +306,9 @@ export async function recentPriceChanges(q?: string, limit = 100) {
     min_price_cents: number | null;
     stock_status: string;
     image_url: string | null;
+    image_urls: string[];
   }>(sql`
-    select x.offer_id, o.title, o.seller, x.price_cents, x.prev, x.observed_at, o.min_price_cents, x.stock_status, p.image_url
+    select x.offer_id, o.title, o.seller, x.price_cents, x.prev, x.observed_at, o.min_price_cents, x.stock_status, p.image_url, p.image_urls
     from (
       select ph.*, lag(ph.price_cents) over (partition by ph.offer_id order by ph.observed_at, ph.id) as prev
       from price_history ph
@@ -327,6 +329,8 @@ export type TrackedSort = "recent" | "drop" | "cheapest" | "observed";
 export type TrackedOffer = {
   id: string;
   title: string;
+  image_url: string | null;
+  image_urls: string[];
   current_price_cents: number | null;
   min_price_cents: number | null;
   observations: number;
@@ -340,7 +344,7 @@ export type TrackedOffer = {
 export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limit?: number } = {}): Promise<TrackedOffer[]> {
   const userId = (await requireUser()).id;
   const { q, sort = "recent" } = opts;
-  const limit = Math.min(opts.limit ?? 100, 300);
+  const limit = Math.min(opts.limit ?? 50, 300);
   const filter = q ? sql`and o.title ilike ${`%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}` : sql``;
   // "Closest to its lowest" first: smallest gap between current and min price.
   const order =
@@ -353,13 +357,13 @@ export async function trackedOffers(opts: { q?: string; sort?: TrackedSort; limi
                    then (o.current_price_cents - o.min_price_cents)::numeric / o.min_price_cents end asc nulls last`
           : sql`o.last_seen_at desc`;
   const res = await db().execute<TrackedOffer>(sql`
-    select o.id, o.title, o.current_price_cents, o.min_price_cents, o.first_seen_at, o.last_success_at, o.status,
+    select o.id, o.title, p.image_url, p.image_urls, o.current_price_cents, o.min_price_cents, o.first_seen_at, o.last_success_at, o.status,
       (select count(*)::int from price_history ph where ph.offer_id = o.id) as observations,
       coalesce((
         select json_agg(x.price_cents order by x.observed_at, x.id)
         from (select price_cents, observed_at, id from price_history ph where ph.offer_id = o.id order by observed_at desc, id desc limit 40) x
       ), '[]'::json) as spark
-    from product_offers o where exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active) ${filter}
+    from product_offers o join products p on p.id=o.product_id where exists (select 1 from user_shops us join shops s on s.id=us.shop_id where us.user_id=${userId} and us.shop_id=o.shop_id and s.active) ${filter}
     order by ${order}
     limit ${limit}`);
   return res.rows;
@@ -520,6 +524,7 @@ export type FlashRow = {
   title: string;
   url: string;
   image_url: string | null;
+  image_urls: string[];
   brand: string | null;
   raw_specs: Record<string,string>;
   category_path: string | null;
@@ -564,7 +569,7 @@ export async function flashOffers(path: string, opts: { sort?: FlashSort; q?: st
           ? sql`a.first_seen_at desc`
           : sql`o.advertised_discount_pct desc nulls last`;
   const rows = await db().execute<FlashRow>(sql`
-    select o.id as offer_id, o.title, o.url, p.image_url, p.brand, p.raw_specs, p.category_path, o.seller,
+    select o.id as offer_id, o.title, o.url, p.image_url, p.image_urls, p.brand, p.raw_specs, p.category_path, o.seller,
            o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
            prev.price_cents as previous_price_cents, o.min_price_cents,
            a.first_seen_at, a.last_seen_at,

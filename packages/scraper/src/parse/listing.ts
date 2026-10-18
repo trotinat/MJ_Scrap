@@ -55,12 +55,14 @@ export function parseListingHtml(html: string, listingPath: string): ListingItem
 
     const sourceId = sourceIdFromUrl(url);
     if (!sourceId) return;
+    const imageUrl = safeHttpUrl(img.attr("src") || img.attr("data-src") || img.attr("srcset"), SITE_ORIGIN);
 
     byUrl.set(url, {
       sourceId,
       url,
       title,
-      imageUrl: safeHttpUrl(img.attr("src") || img.attr("data-src") || img.attr("srcset"), SITE_ORIGIN),
+      imageUrl,
+      imageUrls: imageUrl ? [imageUrl] : [],
       priceCents: prices.priceCents,
       originalPriceCents: prices.originalPriceCents,
       advertisedDiscountPct: prices.advertisedDiscountPct,

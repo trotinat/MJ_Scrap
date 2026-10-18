@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowDownRight, LineChart, Package, TrendingDown, Trophy } from "lucide-react";
-import { btn, Card, cx, EmptyState, input, PageHeader, ProductImage, StatCard, Badge } from "@/components/ui";
+import { btn, Card, cx, EmptyState, input, PageHeader, StatCard, Badge } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
+import { ProductGallery } from "@/components/product-gallery";
 import { priceHistorySummary, recentPriceChanges, trackedOffers, type TrackedSort } from "@/lib/queries";
 import { formatMad, formatMoroccoTime, formatPct, relativeTime } from "@/lib/format";
 
@@ -34,7 +35,7 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
 
       <form method="get" className="mb-6 grid gap-2 rounded-[1.35rem] border border-paper-line bg-paper-card p-3 card-soft sm:grid-cols-[minmax(0,1fr)_220px_auto]">
         <label className="sr-only" htmlFor="price-history-search">Chercher un produit</label>
-        <input id="price-history-search" name="q" defaultValue={q} placeholder="Chercher un produit…" className={cx(input, "min-h-11 text-base")} />
+        <input id="price-history-search" name="q" type="search" autoComplete="off" defaultValue={q} placeholder="Chercher un produit…" className={cx(input, "min-h-11 text-base")} />
         <label className="sr-only" htmlFor="tracked-sort">Trier les offres suivies</label>
         <select id="tracked-sort" name="sort" defaultValue={sort} className={cx(input, "min-h-11 text-base")}>
           {SORTS.map((s) => <option key={s.value} value={s.value}>Offres suivies · {s.label}</option>)}
@@ -55,16 +56,16 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
                 const delta = c.price_cents - c.prev;
                 const pct = (delta / c.prev) * 100;
                 const down = delta < 0;
-                return <li key={`${c.offer_id}-${i}`}>
-                  <Link href={`/produits/${c.offer_id}`} className="block rounded-2xl border border-paper-line bg-paper-card p-3 transition-colors hover:border-brand-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600">
+                const images = [...new Set([...(c.image_urls ?? []), c.image_url].filter((image): image is string => Boolean(image)))].slice(0, 6);
+                return <li key={`${c.offer_id}-${i}`} className="rounded-2xl border border-paper-line bg-paper-card p-3 transition-colors hover:border-brand-300">
                     <div className="flex gap-3">
-                      <ProductImage src={c.image_url} alt="" className="h-[4.5rem] w-[4.5rem] shrink-0 rounded-xl" />
+                      <ProductGallery images={images} className="h-24 w-24 shrink-0 rounded-xl" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge tone={down ? "green" : "red"}>{down ? <><ArrowDownRight className="h-3.5 w-3.5" aria-hidden /> Baisse mesurée</> : "Hausse"}</Badge>
                           <span className="text-xs text-ink-mute">{relativeTime(c.observed_at)}</span>
                         </div>
-                        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-ink">{c.title}</p>
+                        <Link href={`/produits/${c.offer_id}`} translate="no" className="mt-2 line-clamp-2 block text-sm font-semibold leading-snug text-ink hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600">{c.title}</Link>
                       </div>
                     </div>
                     <div className="mt-3 flex items-end justify-between gap-2 border-t border-paper-line pt-3">
@@ -77,7 +78,6 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
                         <p className="text-xs">{formatPct(pct)}</p>
                       </div>
                     </div>
-                  </Link>
                 </li>;
               })}
             </ul>
@@ -102,22 +102,28 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
           </>}
         </Card>
 
-        <Card title="Toutes les offres suivies">
+        <Card title="Offres suivies" actions={<Badge>{offers.length} affichées · filtrez pour affiner</Badge>}>
           {offers.length === 0 ? <EmptyState icon={Package} title="Aucune offre suivie" /> : <>
             <ul className="grid gap-3 md:hidden">
               {offers.map((o) => {
                 const atLowest = o.current_price_cents !== null && o.min_price_cents !== null && o.current_price_cents <= o.min_price_cents;
                 const abovePct = o.current_price_cents !== null && o.min_price_cents && o.min_price_cents > 0 ? ((o.current_price_cents - o.min_price_cents) / o.min_price_cents) * 100 : null;
+                const images = [...new Set([...(o.image_urls ?? []), o.image_url].filter((image): image is string => Boolean(image)))].slice(0, 6);
                 return <li key={o.id} className="rounded-2xl border border-paper-line bg-paper-card p-4">
-                  <Link href={`/produits/${o.id}`} className="line-clamp-2 font-semibold text-ink hover:text-brand-700">{o.title}</Link>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-display text-xl font-bold text-ink">{formatMad(o.current_price_cents)}</p>
-                      <p className="mt-0.5 text-xs text-ink-mute">Plus bas {formatMad(o.min_price_cents)}</p>
-                    </div>
-                    <div className="flex min-w-0 flex-col items-end gap-1">
-                      <Sparkline values={o.spark} width={96} height={28} />
-                      {atLowest ? <Badge tone="green"><Trophy className="h-3 w-3" aria-hidden /> Au plus bas</Badge> : abovePct !== null && abovePct >= 1 ? <span className="text-xs text-ink-mute">+{Math.round(abovePct)} % vs. plus bas</span> : null}
+                  <div className="flex gap-3">
+                    <ProductGallery images={images} className="h-24 w-24 shrink-0 rounded-xl" />
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/produits/${o.id}`} translate="no" className="line-clamp-2 font-semibold text-ink hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600">{o.title}</Link>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-display text-lg font-bold text-ink">{formatMad(o.current_price_cents)}</p>
+                          <p className="mt-0.5 text-xs text-ink-mute">Plus bas {formatMad(o.min_price_cents)}</p>
+                        </div>
+                        <div className="flex min-w-0 flex-col items-end gap-1">
+                          <Sparkline values={o.spark} width={72} height={24} />
+                          {atLowest ? <Badge tone="green"><Trophy className="h-3 w-3" aria-hidden /> Au plus bas</Badge> : abovePct !== null && abovePct >= 1 ? <span className="text-xs text-ink-mute">+{Math.round(abovePct)} % vs. plus bas</span> : null}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <p className="mt-3 border-t border-paper-line pt-2 text-xs text-ink-mute">{o.observations.toLocaleString("fr-FR")} relevés · dernier {relativeTime(o.last_success_at)}{o.status !== "active" ? ` · ${o.status === "missing" ? "plus listé" : "indisponible"}` : ""}</p>

@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "image_urls" text[] DEFAULT '{}'::text[] NOT NULL;

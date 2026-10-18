@@ -41,7 +41,7 @@ interface RawProduct {
   price?: unknown;
   oldPrice?: unknown;
   image?: unknown;
-  media_gallery_entries?: { img?: unknown }[];
+  media_gallery_entries?: { img?: unknown; disabled?: unknown }[];
   seller_name?: unknown;
   note?: unknown;
   review_number?: unknown;
@@ -98,14 +98,18 @@ export function parseEmbeddedProducts(body: string, listingPath: string): Listin
     const originalPriceCents = old !== null && old > price ? madToCents(old) : null;
     const title = cleanTitle(p.name as string);
     if (!title) continue;
-    const img = typeof p.image === "string" ? p.image : typeof p.media_gallery_entries?.[0]?.img === "string" ? (p.media_gallery_entries[0].img as string) : null;
+    const imageUrls = [...new Set([
+      ...(typeof p.image === "string" ? [p.image] : []),
+      ...(p.media_gallery_entries ?? []).filter((entry) => entry?.disabled !== true && typeof entry?.img === "string").map((entry) => entry.img as string),
+    ].map((url) => safeHttpUrl(url, SITE_ORIGIN)).filter((url): url is string => Boolean(url)))];
     const rating = num(p.note);
     const reviews = num(p.review_number);
     byUrl.set(url, {
       sourceId,
       url,
       title,
-      imageUrl: safeHttpUrl(img ?? undefined, SITE_ORIGIN),
+      imageUrl: imageUrls[0] ?? null,
+      imageUrls,
       priceCents,
       originalPriceCents,
       // The site shows the rounded difference between the old and current price.

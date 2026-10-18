@@ -2,7 +2,7 @@ import Link from "next/link";
 import { RetailerLink } from "./retailer-link";
 import { ShareButton } from "./share-button";
 import { CheckCheck, TrendingDown } from "lucide-react";
-import { DEAL_CLASS_LABELS, deriveGallery, type DealClass, type Highlight } from "@mdw/shared";
+import { DEAL_CLASS_LABELS, type DealClass, type Highlight } from "@mdw/shared";
 import { cx, StockBadge } from "./ui";
 import { ProductGallery } from "./product-gallery";
 import { formatMad } from "@/lib/format";
@@ -13,6 +13,7 @@ export interface DealCardData {
   title: string;
   url: string;
   imageUrl: string | null;
+  imageUrls?: string[];
   brand: string | null;
   priceCents: number;
   originalPriceCents: number | null;
@@ -50,7 +51,7 @@ function shortMad(cents: number): string {
 export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; size?: "md" | "lg"; compareForm?: string }) {
   const f = dealFacts(d);
   const big = size === "lg";
-  const gallery = deriveGallery(d.imageUrl, 2);
+  const gallery = [...new Set([...(d.imageUrls ?? []), ...(d.imageUrl ? [d.imageUrl] : [])])];
   const profileTags = (d.highlights ?? []).filter((h) => h.tone === "profile");
   const host = new URL(d.url).hostname.replace(/^www\./, "");
   const source = d.shopName ?? (host === "marjanemall.ma" ? "Marjane Mall" : host);
@@ -63,12 +64,8 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         d.status && d.status !== "active" && "opacity-60",
       )}
     >
-      <Link
-        href={`/produits/${d.offerId}`}
-        className={cx("relative block bg-[#F7F8FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600", big && "sm:w-1/2 sm:shrink-0")}
-        aria-label={d.title}
-      >
-        <ProductGallery images={gallery} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-[5/4]" : "aspect-[5/4]")} />
+      <div className={cx("relative block bg-[#F7F8FC]", big && "sm:w-1/2 sm:shrink-0")}>
+        <ProductGallery images={gallery} alt={d.title} className={cx("w-full", big ? "aspect-[4/3] sm:aspect-[5/4]" : "aspect-[5/4]")} />
         {d.discountPct !== null && d.discountPct > 0 && (
           <span
             className="num absolute left-2 top-2 rounded-lg bg-white/95 px-2 py-1 text-xs font-extrabold text-promo shadow-sm"
@@ -85,7 +82,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         {f.lowest && (
           <span className="absolute bottom-2 left-2 rounded-lg bg-proof px-2 py-1 text-[10px] font-bold text-white">Prix le plus bas relevé</span>
         )}
-      </Link>
+      </div>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-2", big ? "p-5 sm:p-6" : "p-3.5")}>
         <div className="flex min-w-0 items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>{d.stockStatus && <StockBadge stock={d.stockStatus} />}</div>

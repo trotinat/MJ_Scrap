@@ -116,6 +116,7 @@ export const products = pgTable("products", {
   modelRef: text("model_ref"),
   categoryPath: text("category_path"),
   imageUrl: text("image_url"),
+  imageUrls: text("image_urls").array().notNull().default(sql`'{}'::text[]`),
   specs: jsonb("specs").$type<NormalizedSpecs>().notNull().default({}),
   rawSpecs: jsonb("raw_specs").$type<Record<string, string>>().notNull().default({}),
   firstSeenAt: ts("first_seen_at").notNull().defaultNow(),

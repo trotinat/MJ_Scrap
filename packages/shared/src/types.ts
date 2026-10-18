@@ -8,6 +8,8 @@ export interface ListingItem {
   url: string;
   title: string;
   imageUrl: string | null;
+  /** Exact image gallery URLs returned with the listing card, when available. */
+  imageUrls?: string[];
   priceCents: number | null;
   originalPriceCents: number | null;
   advertisedDiscountPct: number | null;
@@ -30,6 +32,8 @@ export interface ProductDetail {
   brand: string | null;
   modelRef: string | null;
   imageUrl: string | null;
+  /** Exact, distinct product-page image URLs; never guessed from related products. */
+  imageUrls?: string[];
   priceCents: number;
   originalPriceCents: number | null;
   advertisedDiscountPct: number | null;

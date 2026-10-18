@@ -14,6 +14,7 @@ export interface OfferObservation {
   brand: string | null;
   modelRef: string | null;
   imageUrl: string | null;
+  imageUrls?: string[];
   priceCents: number;
   originalPriceCents: number | null;
   advertisedDiscountPct: number | null;
@@ -59,8 +60,11 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
   let key = canonicalProductKey(o.brand, o.modelRef, o.sourceId, specs);
 
   const [existingOffer] = await tx.select().from(productOffers).where(and(eq(productOffers.shopId, shopId), eq(productOffers.sourceId, o.sourceId))).limit(1).for("update");
-  const [existingProduct] = existingOffer ? await tx.select().from(products).where(eq(products.id, existingOffer.productId)).limit(1) : [];
+  let [existingProduct] = existingOffer ? await tx.select().from(products).where(eq(products.id, existingOffer.productId)).limit(1) : [];
   if (existingProduct && (o.source === 'listing' || key.startsWith('src:'))) key = existingProduct.canonicalKey;
+  if (!existingProduct) {
+    [existingProduct] = await tx.select().from(products).where(and(eq(products.shopId, shopId), eq(products.canonicalKey, key))).limit(1);
+  }
 
   // Product upsert. A listing-only observation (no specs) never overwrites richer data.
   const productValues = {
@@ -71,6 +75,7 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
     modelRef: o.modelRef,
     categoryPath: o.categoryPath,
     imageUrl: o.imageUrl,
+    imageUrls: [...new Set([...(existingProduct?.imageUrls ?? []), ...(o.imageUrls ?? (o.imageUrl ? [o.imageUrl] : []))])],
     specs,
     rawSpecs: o.rawSpecs,
     lastSeenAt: now,
@@ -78,6 +83,7 @@ export async function saveObservation(tx: Tx, o: OfferObservation, runId: string
   };
   const updateSet: Record<string, unknown> = { name: o.title, lastSeenAt: now, updatedAt: now };
   if (o.imageUrl) updateSet.imageUrl = o.imageUrl;
+  if (o.imageUrls?.length || o.imageUrl) updateSet.imageUrls = productValues.imageUrls;
   if (o.brand) updateSet.brand = o.brand;
   if (o.modelRef) updateSet.modelRef = o.modelRef;
   if (o.categoryPath) updateSet.categoryPath = o.categoryPath;
