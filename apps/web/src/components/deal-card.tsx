@@ -88,7 +88,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
       </div>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-1.5 sm:gap-2", big ? "p-3.5 sm:p-5" : "p-3 sm:p-3.5")}>
-        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{isMarjane ? <Image src="/brands/marjane-mark.png" alt="Marjane Mall" width={32} height={32} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div>{d.stockStatus && <StockBadge stock={d.stockStatus} />}</div>
+        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{isMarjane ? <Image src="/brands/marjane-mark.png" alt="Marjane Mall" width={32} height={32} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div><div className="flex shrink-0 items-center gap-2">{d.stockStatus && <StockBadge stock={d.stockStatus} />}<ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 rounded-xl px-2.5 py-2" /></div></div>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100
@@ -151,7 +151,6 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
         )}
         <div className="flex items-center gap-2">
           <RetailerLink compact url={d.url} className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl bg-brand-600 px-2 py-2 text-xs font-bold text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 sm:px-3" />
-          <ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 shrink-0 rounded-xl px-2.5 py-2" />
         </div>
       </div>
     </article>

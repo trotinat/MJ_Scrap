@@ -115,7 +115,7 @@ export default async function HomePage() {
           <div><p className="section-eyebrow">SÉLECTION PERSONNELLE</p><h2 className="mt-1 font-display text-2xl font-extrabold sm:text-3xl">Repérés pour vous</h2><p className="mt-2 text-sm text-ink-mute">{active.length} recherche{active.length > 1 ? "s" : ""} active{active.length > 1 ? "s" : ""} · produits variés · prix récents</p></div>
           <Link href="/promotions" className={`${btn.secondary} hidden sm:inline-flex`}>Tous mes résultats <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
-        <nav aria-label="Résultats par recherche" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-clip">
+        <nav aria-label="Résultats par recherche" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-clip">
           {active.filter(c => (summaries.get(c.id)?.matches ?? 0) > 0).map(c => (
             <Link key={c.id} href={`/promotions?criterionId=${c.id}`} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-paper-line bg-paper-card px-4 text-sm font-semibold text-ink-soft hover:border-brand-500 hover:text-brand-700">
               {c.name.replace(/^Mode Homme\s*–\s*/, "").split(/[–·(]/)[0]?.trim()} <span className="num text-xs text-brand-600">{summaries.get(c.id)?.matches}</span>

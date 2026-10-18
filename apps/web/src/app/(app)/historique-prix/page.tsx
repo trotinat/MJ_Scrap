@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownRight, LineChart, Package, TrendingDown, Trophy } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, LineChart, Package, TrendingDown, Trophy } from "lucide-react";
 import { btn, Card, cx, EmptyState, input, PageHeader, StatCard, Badge } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { ProductGallery } from "@/components/product-gallery";
@@ -81,23 +81,29 @@ export default async function PriceHistoryPage({ searchParams }: { searchParams:
                 </li>;
               })}
             </ul>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="data">
-                <thead><tr><th>Évolution</th><th>Produit</th><th>Avant</th><th>Maintenant</th><th>Écart</th></tr></thead>
-                <tbody>
-                  {changes.map((c, i) => {
-                    const pct = ((c.price_cents - c.prev) / c.prev) * 100;
-                    const down = c.price_cents < c.prev;
-                    return <tr key={`${c.offer_id}-${i}`}>
-                      <td className="whitespace-nowrap text-xs text-ink-mute">{formatMoroccoTime(c.observed_at)}</td>
-                      <td><Link href={`/produits/${c.offer_id}`} className="line-clamp-2 hover:text-ink">{c.title}</Link></td>
-                      <td className="whitespace-nowrap">{formatMad(c.prev)}</td>
-                      <td className="whitespace-nowrap font-medium">{formatMad(c.price_cents)}</td>
-                      <td className={`whitespace-nowrap font-semibold ${down ? "text-proof" : "text-promo"}`}>{formatMad(Math.abs(c.price_cents - c.prev))} · {formatPct(pct)}</td>
-                    </tr>;
-                  })}
-                </tbody>
-              </table>
+            <div className="hidden md:grid md:grid-cols-2 md:gap-3 2xl:grid-cols-3">
+              {changes.map((c, i) => {
+                const delta = c.price_cents - c.prev;
+                const pct = (delta / c.prev) * 100;
+                const down = delta < 0;
+                const images = [...new Set([...(c.image_urls ?? []), c.image_url].filter((image): image is string => Boolean(image)))].slice(0, 6);
+                return <article key={`${c.offer_id}-${i}`} className="group rounded-2xl border border-paper-line bg-paper-card p-3 transition-colors hover:border-brand-200 hover:bg-white">
+                  <div className="flex min-w-0 gap-3">
+                    <ProductGallery images={images} alt={c.title} className="h-16 w-16 shrink-0 rounded-xl" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <Badge tone={down ? "green" : "red"}>{down ? <><ArrowDownRight className="h-3.5 w-3.5" aria-hidden /> Baisse mesurée</> : <><ArrowUpRight className="h-3.5 w-3.5" aria-hidden /> Hausse observée</>}</Badge>
+                        <time className="text-[11px] text-ink-mute" dateTime={c.observed_at}>{formatMoroccoTime(c.observed_at)}</time>
+                      </div>
+                      <Link href={`/produits/${c.offer_id}`} translate="no" className="mt-2 line-clamp-2 block text-sm font-semibold leading-snug text-ink hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600">{c.title}</Link>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-end justify-between gap-3 border-t border-paper-line pt-2.5">
+                    <div className="min-w-0 text-xs text-ink-mute"><p>Avant <span className="font-medium text-ink">{formatMad(c.prev)}</span></p><p className="mt-0.5">Maintenant <span className="font-bold text-ink">{formatMad(c.price_cents)}</span></p></div>
+                    <div className={`shrink-0 text-right font-display font-bold ${down ? "text-proof" : "text-promo"}`}><p className="text-base">{down ? "−" : "+"}{formatMad(Math.abs(delta))}</p><p className="text-xs">{formatPct(pct)}</p></div>
+                  </div>
+                </article>;
+              })}
             </div>
           </>}
         </Card>
