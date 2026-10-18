@@ -23,10 +23,11 @@ import {
 } from "@mdw/database";
 import { AccessBlockedError, detectBrand, extractModelRef, RobotsDisallowedError, type SiteAdapter } from "@mdw/scraper";
 import { decideNotification, evaluate, USER_NOTIFY_EVENTS, type PreviousMatchState } from "@mdw/scoring";
-import { anyPhraseMatches, fitsUrbanJungleProfile, madToCents, matchesFashionType, OUT_OF_PROFILE_REASON, URBAN_JUNGLE_SHOP_ID, withProfileConstraints, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
+import { anyPhraseMatches, madToCents, matchesFashionType, URBAN_JUNGLE_SHOP_ID, withProfileConstraints, type AppSettings, type Criterion, type ListingItem, type ProductDetail } from "@mdw/shared";
 import { enqueueNotification, formatDealMessage, processOutbox, type TelegramClient } from "@mdw/notifications";
 import { applyMissingPolicy, markOfferGone, saveObservation, type OfferObservation } from "./persist";
 import type { Logger } from "./logger";
+import { urbanJungleVerdict } from "./urban-jungle";
 
 export interface PipelineDeps {
   db: Db;
@@ -391,10 +392,7 @@ async function collect(
       const byCriterion = new Map(previousMatches.map(m=>[m.criterionId,m]));
       for (const criterion of criteria) {
         let ev = evaluate(criterion, saved.matchable, saved.facts, settings);
-        const ujProfile = urbanJungleProfiles?.get(criterion.id);
-        if (ev.isMatch && ujProfile && !fitsUrbanJungleProfile({ title: saved.matchable.title, brand: saved.matchable.brand, rawSpecs: saved.matchable.rawSpecs, categoryPath: saved.matchable.categoryPath }, ujProfile)) {
-          ev = { ...ev, isMatch: false, failedReasons: [...ev.failedReasons, OUT_OF_PROFILE_REASON] };
-        }
+        if (urbanJungleProfiles) ev = urbanJungleVerdict(ev, saved.matchable, urbanJungleProfiles.get(criterion.id));
         const prevRow = byCriterion.get(criterion.id);
         // Only keep rows for products that are relevant to this criterion.
         if (!ev.isMatch && !prevRow && !verifiedCriterionIds?.has(criterion.id)) continue;

@@ -2,14 +2,19 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { dealMatches, getAppSettings, getUserProfile, listCriteria, listingAppearances, notifications, priceHistory, productOffers, products, SCRAPE_LOCK_KEY, withAdvisoryLock, type Db } from '@mdw/database';
 import type pg from 'pg';
 import { evaluate, historyFacts } from '@mdw/scoring';
-import { withProfileConstraints } from '@mdw/shared';
+import { URBAN_JUNGLE_SHOP_ID, withProfileConstraints, type ShopperProfile } from '@mdw/shared';
+import { urbanJungleVerdict } from './urban-jungle';
 
 /** Refresh saved matches after rule changes, without crawling, inventing observations or sending alerts. */
 export async function reevaluateSaved(db: Db, pool: pg.Pool) {
   return withAdvisoryLock(pool, SCRAPE_LOCK_KEY, async () => {
     const settings = await getAppSettings(db);
-    const criteria = await Promise.all((await listCriteria(db)).map(async c =>
-      withProfileConstraints(c, await getUserProfile(db, c.ownerId!))));
+    const profiles = new Map<string, ShopperProfile>();
+    const criteria = await Promise.all((await listCriteria(db)).map(async c => {
+      const profile = await getUserProfile(db, c.ownerId!);
+      profiles.set(c.id, profile);
+      return withProfileConstraints(c, profile);
+    }));
     const rows = await db.select({o:productOffers,p:products}).from(productOffers).innerJoin(products,eq(products.id,productOffers.productId));
     const appearances = await db.select().from(listingAppearances);
     const paths = new Map<string,string[]>();
@@ -20,7 +25,8 @@ export async function reevaluateSaved(db: Db, pool: pg.Pool) {
       const history = await db.select({priceCents:priceHistory.priceCents,observedAt:priceHistory.observedAt}).from(priceHistory).where(eq(priceHistory.offerId,o.id)).orderBy(priceHistory.observedAt,priceHistory.id);
       for(const c of criteria) {
         if (c.shopId !== o.shopId) continue;
-        const ev = evaluate(c,{title:o.title,brand:p.brand,modelRef:p.modelRef,categoryPath:p.categoryPath,listingPaths:paths.get(o.id),priceCents:o.currentPriceCents,originalPriceCents:o.originalPriceCents,advertisedDiscountPct:o.advertisedDiscountPct,seller:o.seller,stock:o.stockStatus,rating:o.rating,reviewCount:o.reviewCount,rawSpecs:p.rawSpecs,specs:p.specs},historyFacts(history),settings);
+        let ev = evaluate(c,{title:o.title,brand:p.brand,modelRef:p.modelRef,categoryPath:p.categoryPath,listingPaths:paths.get(o.id),priceCents:o.currentPriceCents,originalPriceCents:o.originalPriceCents,advertisedDiscountPct:o.advertisedDiscountPct,seller:o.seller,stock:o.stockStatus,rating:o.rating,reviewCount:o.reviewCount,rawSpecs:p.rawSpecs,specs:p.specs},historyFacts(history),settings);
+        if (c.shopId === URBAN_JUNGLE_SHOP_ID) ev = urbanJungleVerdict(ev,{title:o.title,brand:p.brand,rawSpecs:p.rawSpecs,categoryPath:p.categoryPath},profiles.get(c.id));
         const valid = c.enabled && o.status === 'active' && ev.isMatch;
         if(valid) matches++;
         const values = {isMatch:valid,score:ev.score,dealClass:ev.dealClass,explanation:ev.explanation,breakdown:ev.breakdown,failedReasons:ev.failedReasons,priceCents:o.currentPriceCents,lastEvaluatedAt:new Date()};
