@@ -57,6 +57,13 @@
       "when": 1792283641997,
       "tag": "0007_tiresome_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792440000000,
+      "tag": "0008_kitea",
+      "breakpoints": true
     }
   ]
 }

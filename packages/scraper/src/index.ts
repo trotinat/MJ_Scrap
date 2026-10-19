@@ -13,3 +13,4 @@ export { findSeller, findStock, findReviewCount, findRating } from "./parse/fiel
 export { parseCampaignLinks } from './parse/campaigns';
 export * from "./shopify";
 export * from "./shops/urban-jungle";
+export * from "./shops/kitea";

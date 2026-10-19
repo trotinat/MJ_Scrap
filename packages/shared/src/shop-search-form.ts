@@ -28,9 +28,35 @@ export const URBAN_JUNGLE_SEARCH_FORM: ShopSearchFormConfig = {
   fields: { audience: true, sizes: true, productType: true, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
 };
 
+/** Public Kitea pages selected for the first shopper-facing search experience. */
+export const KITEA_CATEGORY_SCOPES = [
+  { path: "/", label: "À la une" },
+  { path: "/destockagekitea.html", label: "Déstockage" },
+  { path: "/les-petits-prix-de-la-semaine.html", label: "Petits prix" },
+  { path: "/par-espaces/salon-et-sejour.html", label: "Salon & séjour" },
+  { path: "/par-espaces/chambre-adulte.html", label: "Chambres" },
+  { path: "/literie-bain", label: "Literie & bain" },
+] as const;
+
+export const KITEA_SEARCH_FORM: ShopSearchFormConfig = {
+  connectorLabel: "Connecteur KITEA",
+  intro: "Parcourez les promotions, le déstockage et les rayons maison de KITEA. Ajoutez des mots-clés pour cibler un meuble, une pièce ou une référence.",
+  keywordPlaceholder: "Ex. canapé d’angle, lit 160x200, matelas",
+  sizeHint: "",
+  scope: {
+    kind: "collections",
+    label: "Pages et rayons KITEA",
+    hint: "Choisissez une ou plusieurs pages. Les prix affichés sont relevés chez KITEA ; Hawta distingue les remises annoncées des baisses mesurées.",
+    choices: [...KITEA_CATEGORY_SCOPES],
+  },
+  fields: { audience: false, sizes: false, productType: false, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
+};
+
 export const SHOP_SEARCH_FORMS: Record<string, ShopSearchFormConfig> = {
   "marjane-mall": MARJANE_SEARCH_FORM,
   "urban-jungle-ma": URBAN_JUNGLE_SEARCH_FORM,
+  "kitea-ma": KITEA_SEARCH_FORM,
+  kitea: KITEA_SEARCH_FORM,
 };
 
 export function shopSearchForm(shopId: string): ShopSearchFormConfig | null {

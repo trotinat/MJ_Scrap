@@ -12,6 +12,7 @@ import { ProductGallery } from "@/components/product-gallery";
 import { PriceChart } from "@/components/price-chart";
 import { ShareButton } from "@/components/share-button";
 import { offerDetail, similarModelOffers } from "@/lib/queries";
+import { shopDisplayName } from "@/components/shop-brand-icon";
 import { formatMad, formatMoroccoTime, formatPct, STOCK_LABELS } from "@/lib/format";
 
 export const metadata = { title: "Détail du produit" };
@@ -24,7 +25,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!data) notFound();
   const { offer, product, history, matches, siblings } = data;
   const galleryImages = [...new Set([...(product.imageUrls ?? []), product.imageUrl].filter((image): image is string => Boolean(image)))].slice(0, 8);
-  const shopName = offer.shopId === "marjane-mall" ? "Marjane Mall" : new URL(offer.url).hostname.replace(/^www\./, "");
+  const shopName = shopDisplayName(null, offer.url, offer.shopId);
   const stats = priceStats(history.map((h) => ({ priceCents: h.priceCents, observedAt: h.observedAt })));
   const baseline = historyFacts(history.map(h=>({priceCents:h.priceCents,observedAt:h.observedAt})));
   const points = history.map((h) => ({ t: h.observedAt.getTime(), price: h.priceCents / 100, original: h.originalPriceCents ? h.originalPriceCents / 100 : null }));

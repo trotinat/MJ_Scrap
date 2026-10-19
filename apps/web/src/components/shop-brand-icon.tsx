@@ -6,9 +6,25 @@ const LOGOS = [
   { name: "urban jungle maroc", host: "ma.urbanjunglestore.com", src: "/brands/urban-jungle-mark.svg", alt: "Urban Jungle Maroc" },
 ];
 
+const SHOP_LABELS: Array<{ label: string; names: string[]; hosts: string[] }> = [
+  { label: "Marjane Mall", names: ["marjane mall"], hosts: ["marjanemall.ma"] },
+  { label: "Urban Jungle Maroc", names: ["urban jungle", "urban jungle maroc"], hosts: ["ma.urbanjunglestore.com"] },
+  { label: "Kitea", names: ["kitea", "kitea maroc", "kitea ma"], hosts: ["kitea.com", "kitea.ma"] },
+];
+
+/** Consistent boutique name from a saved shop name, shop ID, or product URL. */
+export function shopDisplayName(name?: string | null, url?: string | null, shopId?: string | null) {
+  const normalized = name?.trim().toLowerCase() ?? "";
+  const id = shopId?.trim().toLowerCase() ?? "";
+  let host = "";
+  try { host = url ? new URL(url).hostname.replace(/^www\./, "").toLowerCase() : ""; } catch { /* Keep the supplied name when a URL is malformed. */ }
+  return SHOP_LABELS.find((shop) => shop.names.includes(normalized) || shop.hosts.includes(host) || (shop.label === "Kitea" && (id === "kitea" || id === "kitea-ma")))?.label ?? name?.trim() ?? (host || "Boutique");
+}
+
 /** Logo of a known boutique, found by its name or by the offer's site. */
 export function shopLogo(name?: string | null, url?: string | null) {
-  const host = url ? new URL(url).hostname.replace(/^www\./, "") : null;
+  let host: string | null = null;
+  try { host = url ? new URL(url).hostname.replace(/^www\./, "") : null; } catch { /* Fall back to matching the saved name. */ }
   return LOGOS.find((l) => l.name === name?.trim().toLowerCase() || l.host === host) ?? null;
 }
 

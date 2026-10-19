@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { scrapingRuns, getAppSettings, shops, SCRAPE_LOCK_KEY, withAdvisoryLock, type Db } from "@mdw/database";
-import { configureProxyFromEnv, createUrbanJungleAdapter, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
+import { configureProxyFromEnv, createKiteaAdapter, createUrbanJungleAdapter, KITEA_DEAL_PATHS, KITEA_SHOP_ID, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
 import { TelegramClient, telegramConfigFromEnv } from "@mdw/notifications";
 import type { WorkerConfig } from "./config";
 import type { Logger } from "./logger";
@@ -11,20 +11,23 @@ import { runScrape, type PipelineDeps, type RunOutcome } from "./pipeline";
 const CONNECTORS: Record<string, { dealPagePaths?: string[] }> = {
   "marjane-mall": {},
   [URBAN_JUNGLE.shopId]: { dealPagePaths: URBAN_JUNGLE.dealPagePaths },
+  [KITEA_SHOP_ID]: { dealPagePaths: KITEA_DEAL_PATHS },
 };
 
 export async function buildAdapter(db: Db, config: WorkerConfig, shopId = "marjane-mall"): Promise<SiteAdapter> {
   if (!CONNECTORS[shopId]) throw new Error(`Aucun collecteur branché pour ${shopId}.`);
   configureProxyFromEnv();
   const settings = await getAppSettings(db);
+  const isKitea = shopId === KITEA_SHOP_ID;
   const http = {
-    userAgent: config.SCRAPER_USER_AGENT,
-    minDelayMs: settings.requestDelayMs,
+    userAgent: isKitea ? "HawtaPriceMonitor/1.0 (+https://github.com/trotinat/MJ_Scrap)" : config.SCRAPER_USER_AGENT,
+    minDelayMs: isKitea ? Math.max(settings.requestDelayMs, 10_000) : settings.requestDelayMs,
     timeoutMs: config.REQUEST_TIMEOUT_MS,
     maxRetries: config.MAX_RETRIES,
     respectRobots: config.RESPECT_ROBOTS ?? true,
   };
   if (shopId === URBAN_JUNGLE.shopId) return createUrbanJungleAdapter(http);
+  if (isKitea) return createKiteaAdapter(http);
   return new MarjaneAdapter({
     ...http,
     renderMode: config.RENDER_MODE,
