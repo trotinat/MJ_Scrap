@@ -1,9 +1,11 @@
-{
-	email {$ACME_EMAIL}
-}
-
-# HTTPS certificates are obtained and renewed automatically (Let's Encrypt).
+# HTTPS certificates are obtained and renewed automatically. IP certificates
+# require Let's Encrypt's short-lived profile.
 {$DOMAIN} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
 	encode zstd gzip
 
 	header {

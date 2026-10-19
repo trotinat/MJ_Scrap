@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/profil-destockage-ui
+      - feat/urban-jungle-connector
       - main
   workflow_dispatch:
 
@@ -44,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$DEPLOY_BRANCH" in
-            main|feat/profil-destockage-ui) ;;
+            main|feat/profil-destockage-ui|feat/urban-jungle-connector) ;;
             *) echo "Refusing to deploy unexpected branch: $DEPLOY_BRANCH" >&2; exit 1 ;;
           esac
           test -n "$DEPLOY_USER" || { echo "Missing DEPLOY_USER" >&2; exit 1; }
@@ -53,4 +54,4 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd /opt/marjane-deals-watcher && git fetch origin '$DEPLOY_BRANCH' && git checkout -B '$DEPLOY_BRANCH' 'origin/$DEPLOY_BRANCH' && bash scripts/deploy-vps.sh"
+            "cd /home/deploy/marjane-app && git fetch origin '$DEPLOY_BRANCH' && git checkout -B '$DEPLOY_BRANCH' 'origin/$DEPLOY_BRANCH' && bash scripts/deploy-vps.sh"

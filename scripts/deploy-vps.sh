@@ -6,7 +6,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.tailscale.yml)
+COMPOSE=(docker compose)
 exec 9>"$ROOT/.git/deploy.lock"
 if ! flock -n 9; then
   echo "Another Marjane deploy is already running." >&2
@@ -42,17 +42,18 @@ if [ -s "$ROOT/.env" ]; then
 fi
 
 echo "Building web, worker, and migration images..."
-"${COMPOSE[@]}" build web worker migrate bot
+"${COMPOSE[@]}" build web worker migrate
 
 echo "Applying database migrations..."
 "${COMPOSE[@]}" run --rm migrate node dist/cli.js migrate
 
 echo "Starting the updated app..."
-"${COMPOSE[@]}" up -d --remove-orphans
+"${COMPOSE[@]}" up -d --remove-orphans db backup worker web caddy
 
 echo "Checking app health..."
+DOMAIN="$(awk -F= '$1 == "DOMAIN" { print $2; exit }' "$ROOT/.env")"
 for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
+  if [ -n "$DOMAIN" ] && curl --resolve "$DOMAIN:443:127.0.0.1" --insecure --fail --silent "https://$DOMAIN/api/health" >/dev/null; then
     echo "Marjane deployment is healthy."
     exit 0
   fi
