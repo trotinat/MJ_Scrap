@@ -34,10 +34,10 @@ if [ -s "$ROOT/.env" ]; then
   "${COMPOSE[@]}" exec -T backup /bin/sh /scripts/backup-db.sh
   latest="$(find "$ROOT/backups/daily" -maxdepth 1 -type f -name 'mdw-*.dump' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)"
   if [ -n "$latest" ]; then
-    mkdir -p "$ROOT/backups/predeploy"
-    cp -- "$latest" "$ROOT/backups/predeploy/mdw-$stamp.dump"
-    chmod 600 "$ROOT/backups/predeploy/mdw-$stamp.dump"
-    find "$ROOT/backups/predeploy" -type f -name 'mdw-*.dump' -mtime +30 -delete
+    mkdir -p "$ROOT/.git/deploy-backups"
+    cp -- "$latest" "$ROOT/.git/deploy-backups/mdw-$stamp.dump"
+    chmod 600 "$ROOT/.git/deploy-backups/mdw-$stamp.dump"
+    find "$ROOT/.git/deploy-backups" -type f -name 'mdw-*.dump' -mtime +30 -delete
   fi
 fi
 
