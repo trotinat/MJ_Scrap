@@ -29,7 +29,7 @@ export const specRuleSchema = z.object({
 });
 export type SpecRule = z.infer<typeof specRuleSchema>;
 
-/** Category / listing path on marjanemall.ma, e.g. "/tv-son-photo/tv-home-cinema/televiseur". */
+/** Category / listing path on a configured store, including paths ending in .html. */
 /**
  * A listing on marjanemall.ma: a path, optionally with the site's own filter
  * query string (e.g. "/boutique-officielle/adidas?maas_46800=42&maas_28003=Homme").
@@ -43,8 +43,8 @@ export const sitePathSchema = z
     z
       .string()
       .regex(
-        /^\/[a-z0-9][a-z0-9\-/]*(\?[A-Za-z0-9_\-.,=&%+]+)?$/i,
-        "Chemin invalide (ex. /tv-son-photo/tv-home-cinema/televiseur ou une URL Marjane Mall avec ses filtres)",
+        /^\/[a-z0-9][a-z0-9.\-/]*(\?[A-Za-z0-9_\-.,=&%+]+)?$/i,
+        "Chemin invalide (ex. /par-espaces/chambre-adulte.html ou /rayon?filtre=valeur)",
       )
       .max(500)
       .refine((p) => !p.includes(".."), "Chemin invalide"),
