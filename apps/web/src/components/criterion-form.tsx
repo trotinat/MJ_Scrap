@@ -418,7 +418,8 @@ export function CriterionForm({
           {preview.phase !== "idle" && <p>{preview.message} · {preview.checked} fiche{preview.checked > 1 ? "s" : ""} vérifiée{preview.checked > 1 ? "s" : ""} · {preview.found} résultat{preview.found > 1 ? "s" : ""}</p>}
           {preview.rejected > 0 && <p className="mt-1">{preview.rejected} produit{preview.rejected > 1 ? "s" : ""} écarté{preview.rejected > 1 ? "s" : ""} par vos filtres.</p>}
           {preview.errors > 0 && <p className="mt-1 text-promo">{preview.errors} fiche{preview.errors > 1 ? "s" : ""} ou rayon{preview.errors > 1 ? "s" : ""} non vérifié{preview.errors > 1 ? "s" : ""} : aperçu incomplet.</p>}
-          {preview.phase === "done" && preview.found === 0 && <p className="mt-1">Aucun résultat dans cet échantillon. Vous pouvez ajuster les critères et relancer.</p>}
+          {preview.phase === "done" && preview.found === 0 && preview.errors === 0 && <p className="mt-1">Aucun résultat dans cet échantillon. Vous pouvez ajuster les critères et relancer.</p>}
+          {preview.phase === "done" && preview.found === 0 && preview.errors > 0 && <p className="mt-1">Aucun résultat n’a pu être confirmé : au moins une fiche ou un rayon est inaccessible. Décochez le rayon signalé ou relancez plus tard.</p>}
           {preview.testedPayload !== filterSignature && preview.phase !== "idle" && <p className="mt-1 text-promo">Les filtres ont changé depuis le test. Relancez-le pour valider.</p>}
         </div>
         {preview.items.length > 0 && <ul className="mt-4 space-y-2" aria-label="Produits correspondants">
