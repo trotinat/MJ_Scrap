@@ -154,7 +154,7 @@ export function CriterionForm({
           if (event.type === "listing") return { ...p, message: `${event.count ?? 0} produits repérés · vérification des fiches…` };
           if (event.type === "warning") return { ...p, errors: p.errors + 1, message: event.message ?? "Rayon indisponible." };
           if (event.type === "error") return { ...p, phase: "error", message: event.message ?? "Le test a échoué." };
-          if (event.type === "done") return { ...p, phase: "done", checked: event.checked ?? p.checked, found: event.found ?? p.found, rejected: event.rejected ?? p.rejected, errors: event.errors ?? p.errors, message: "Test terminé" };
+          if (event.type === "done") return { ...p, phase: "done", checked: event.checked ?? p.checked, found: event.found ?? p.found, rejected: event.rejected ?? p.rejected, errors: event.errors ?? p.errors, message: event.errors ? p.message : "Test terminé" };
           return p;
         });
       };
