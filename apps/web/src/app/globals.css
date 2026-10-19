@@ -357,3 +357,22 @@ table.data tr:last-child td {
     transition-duration: 0.01ms !important;
   }
 }
+
+.ops-activity-axis { display:flex; justify-content:space-between; margin-top:4px; color:#76859a; font-size:7px; }
+.ops-errors-link,.ops-no-errors { display:inline-flex; min-height:28px; align-items:center; gap:2px; color:#f4ae55; font-size:8px; font-weight:700; text-decoration:none; }
+.ops-errors-link:hover { color:#ffd48f; text-decoration:underline; }
+.ops-no-errors { color:#8492a5; }
+@media (max-width:850px) {
+  .ops-rail { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+  .ops-brand { grid-column:1/-1; }
+  .ops-rail>.ops-rail-link:not(.active) { display:flex; }
+  .ops-rail>.ops-rail-link { justify-content:center; gap:6px; min-width:0; padding-inline:5px; font-size:9px; }
+  .ops-rail-pulse { width:5px; height:5px; margin-left:0; }
+}
+@media (max-width:620px) {
+  .ops-rail { padding-top:max(8px,env(safe-area-inset-top)); padding-bottom:8px; }
+  .ops-brand { padding-bottom:2px; }
+  .ops-rail>.ops-rail-link { min-height:36px; }
+  .ops-activity-foot { align-items:flex-start; }
+  .ops-errors-link { min-height:24px; text-align:right; }
+}

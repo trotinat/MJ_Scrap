@@ -122,7 +122,8 @@ export function OpsDashboard() {
         <article className="ops-panel ops-activity-card"><div className="ops-panel-head"><div><div className="ops-panel-title"><Activity size={17} /> Activité 24 h</div><p>Volume de travail du robot</p></div><span className="ops-activity-icon"><Zap size={17} /></span></div>
           <div className="ops-activity-number">{fmt(app?.counts.runs24h ?? 0)}<span> collectes</span></div>
           <div className="ops-activity-bars" aria-label="Collectes par heure sur les dernières 24 heures">{app?.activity.map((hour, index) => <i key={`${hour.hour}-${index}`} className={index === app.activity.length - 1 ? "today" : ""} title={`${hour.hour} · ${hour.runs} collecte${hour.runs > 1 ? "s" : ""}`} style={{ height: `${Math.max(4, (hour.runs / maxHourlyRuns) * 100)}%` }} />)}</div>
-          <div className="ops-activity-foot"><span><i className="good" /> {fmt(app?.notifications.sent ?? 0)} alertes envoyées / 24 h</span><span className={(app?.counts.errors24h ?? 0) ? "warn" : ""}>{fmt(app?.counts.errors24h ?? 0)} erreurs</span></div>
+          <div className="ops-activity-axis"><span>Il y a 24 h</span><span>Maintenant</span></div>
+          <div className="ops-activity-foot"><span><i className="good" /> {fmt(app?.notifications.sent ?? 0)} alertes envoyées / 24 h</span>{(app?.counts.errors24h ?? 0) > 0 ? <Link href="/collectes" className="ops-errors-link">{fmt(app!.counts.errors24h)} erreurs · Voir le journal <ChevronRight size={11} /></Link> : <span className="ops-no-errors">Aucune erreur</span>}</div>
         </article>
       </section>
 
