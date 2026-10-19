@@ -28,6 +28,7 @@ export class AccessBlockedError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly url: string | null = null,
   ) {
     super(message);
     this.name = "AccessBlockedError";
@@ -114,7 +115,7 @@ export class PoliteFetcher {
       }
     } catch (err) {
       // RFC 9309: if robots.txt is unreachable, assume complete disallow.
-      throw new AccessBlockedError(`Impossible de lire robots.txt : ${(err as Error).message}`, 0);
+      throw new AccessBlockedError(`Impossible de lire robots.txt : ${(err as Error).message}`, 0, `${this.origin}/robots.txt`);
     }
     return this.robots;
   }
@@ -140,6 +141,7 @@ export class PoliteFetcher {
         throw new AccessBlockedError(
           `Accès refusé par le site (HTTP ${res.status}). Le scraper s'arrête sans contourner la protection.`,
           res.status,
+          res.url,
         );
       }
       if (res.status === 429 || res.status >= 500) {

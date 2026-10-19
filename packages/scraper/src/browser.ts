@@ -109,7 +109,7 @@ export class ListingRenderer {
       await page.waitForSelector('a[href*="/p/"]', { timeout: Math.min(20_000, this.opts.timeoutMs) }).catch(() => undefined);
       const first = await page.content();
       if (looksBlocked(status, first)) {
-        throw new AccessBlockedError(`Accès refusé lors du rendu (HTTP ${status})`, status);
+        throw new AccessBlockedError(`Accès refusé lors du rendu (HTTP ${status})`, status, url);
       }
 
       let previousCount = await page.locator('a[href*="/p/"]').count();

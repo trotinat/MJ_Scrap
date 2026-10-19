@@ -221,7 +221,11 @@ describe("PoliteFetcher", () => {
   });
   it("stops on access blocks (no bypass)", async () => {
     const { f } = make(() => new Response("<html>captcha</html>", { status: 403 }));
-    await expect(f.get("https://www.marjanemall.ma/x")).rejects.toBeInstanceOf(AccessBlockedError);
+    await expect(f.get("https://www.marjanemall.ma/x")).rejects.toMatchObject({
+      name: "AccessBlockedError",
+      status: 403,
+      url: "https://www.marjanemall.ma/x",
+    });
   });
   it("refuses robots-disallowed paths", async () => {
     const { f } = make(() => new Response("ok"));

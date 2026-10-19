@@ -216,7 +216,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
         // legitimately read before the refusal has been stored.
         stats.accessBlocked = blocked instanceof AccessBlockedError;
         fatal = `${blocked.message} La collecte s'est arrêtée sans contourner la protection${(stats.cardsSeen ?? 0) > 0 ? ` ; ${stats.cardsSeen} fiche(s) lues avant le refus ont été enregistrées.` : "."}`;
-        await recordError("access", blocked.message, null, blocked instanceof AccessBlockedError ? blocked.status : null);
+        await recordError("access", blocked.message, blocked instanceof AccessBlockedError ? blocked.url : null, blocked instanceof AccessBlockedError ? blocked.status : null);
         status = (stats.cardsSeen ?? 0) > 0 ? "partial" : "failed";
       }
     }
@@ -224,7 +224,7 @@ async function doRun(deps: PipelineDeps, trigger: RunTrigger, scheduledFor: Date
     if (err instanceof AccessBlockedError || err instanceof RobotsDisallowedError) {
       stats.accessBlocked = err instanceof AccessBlockedError;
       fatal = err.message;
-      await recordError("access", err.message, null, err instanceof AccessBlockedError ? err.status : null);
+      await recordError("access", err.message, err instanceof AccessBlockedError ? err.url : null, err instanceof AccessBlockedError ? err.status : null);
     } else {
       fatal = `Erreur inattendue : ${firstLine((err as Error).message)}`;
       await recordError("pipeline", (err as Error).stack ?? (err as Error).message);

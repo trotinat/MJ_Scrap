@@ -15,6 +15,7 @@ import {
   runRequests,
   saveAppSettings,
   scrapingRuns,
+  scrapingErrors,
   searchCriteria,
   shops,
   seedRecommendedCriteria,
@@ -66,7 +67,7 @@ class FakeSite implements SiteAdapter {
   async discover(path: string): Promise<ListingResult> {
     if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     if (this.blocked) throw new AccessBlockedError("Accès refusé par le site (HTTP 403)", 403);
-    if (this.blockedPaths.has(path)) throw new AccessBlockedError("Accès refusé lors du rendu (HTTP 403)", 403);
+    if (this.blockedPaths.has(path)) throw new AccessBlockedError("Accès refusé lors du rendu (HTTP 403)", 403, `https://www.marjanemall.ma${path}`);
     const items: ListingItem[] = [...this.products.values()]
       .filter((p) => p.path === path || p.alsoOn?.includes(path))
       .map((p) => ({
@@ -344,6 +345,8 @@ describeDb("worker pipeline (PostgreSQL + fake site)", () => {
     expect(site.detailCalls).toBe(0);
     const [run] = await h.db.select().from(scrapingRuns).where(eq(scrapingRuns.id, r.runId));
     expect(run!.errorSummary).toMatch(/sans contourner la protection ; 1 fiche\(s\) lues avant le refus/);
+    const [error] = await h.db.select().from(scrapingErrors).where(eq(scrapingErrors.runId, r.runId));
+    expect(error).toMatchObject({ stage: "access", httpStatus: 403, url: `https://www.marjanemall.ma${TV_PATH}` });
     expect(await h.db.select().from(listingAppearances)).toHaveLength(1);
   });
 
