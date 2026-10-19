@@ -49,11 +49,12 @@ echo "Applying database migrations..."
 
 echo "Starting the updated app..."
 "${COMPOSE[@]}" up -d --remove-orphans db backup worker web caddy
+"${COMPOSE[@]}" restart caddy
 
 echo "Checking app health..."
-DOMAIN="$(awk -F= '$1 == "DOMAIN" { print $2; exit }' "$ROOT/.env")"
+DOMAIN="$(awk -F= '$1 == "DOMAIN" { gsub(/\r/, "", $2); print $2; exit }' "$ROOT/.env")"
 for attempt in $(seq 1 60); do
-  if [ -n "$DOMAIN" ] && curl --resolve "$DOMAIN:443:127.0.0.1" --insecure --fail --silent "https://$DOMAIN/api/health" >/dev/null; then
+  if [ -n "$DOMAIN" ] && curl --max-time 8 --resolve "$DOMAIN:443:127.0.0.1" --insecure --fail --silent "https://$DOMAIN/api/health" >/dev/null; then
     echo "Marjane deployment is healthy."
     exit 0
   fi
