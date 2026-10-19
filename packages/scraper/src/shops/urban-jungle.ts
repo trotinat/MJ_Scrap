@@ -1,4 +1,4 @@
-import { URBAN_JUNGLE_COLLECTIONS } from "@mdw/shared";
+import { URBAN_JUNGLE_COLLECTIONS, URBAN_JUNGLE_SEARCH_FORM } from "@mdw/shared";
 import type { FetcherOptions } from "../http";
 import { ShopifyAdapter, type ShopifyShop } from "../shopify";
 
@@ -13,6 +13,7 @@ export const URBAN_JUNGLE: ShopifyShop = {
   seller: "Urban Jungle",
   dealPagePaths: ["/collections/soldes"],
   collections: URBAN_JUNGLE_COLLECTIONS,
+  searchFormConfig: URBAN_JUNGLE_SEARCH_FORM,
   brandAliases: { "NORTH FACE": "The North Face", "URBAN JUNGLE": "Urban Jungle", "HEY DUDE": "Hey Dude" },
 };
 

@@ -6,10 +6,10 @@ import {
   CATEGORY_SUGGESTIONS,
   NOTIFY_MODE_LABELS,
   NOTIFY_MODES,
+  shopSearchForm,
   SPEC_ATTRIBUTES,
   SPEC_OPERATOR_LABELS,
   SPEC_OPERATORS,
-  URBAN_JUNGLE_COLLECTIONS,
   type CriterionInput,
   type SpecRule,
 } from "@mdw/shared";
@@ -126,8 +126,10 @@ export function CriterionForm({
   const payload = JSON.stringify({ ...d, name: d.name.trim() || (previewBeforeSave ? suggestedName.slice(0, 120) : d.name) });
   const filterSignature = JSON.stringify([d.shopId, d.filters]);
   const selectedShop = shops.find(shop => shop.id === d.shopId)?.name ?? "la boutique";
+  const shopForm = shopSearchForm(d.shopId);
   const isCurrentPreview = preview.phase === "done" && preview.testedPayload === filterSignature;
   const hasSearchScope = d.filters.categoryPaths.length > 0 || d.filters.keywords.length > 0 || d.filters.altKeywords.length > 0 || Boolean(d.filters.modelRef);
+  const canPreview = Boolean(shopForm) && hasSearchScope;
   async function testSearch() {
     abortRef.current?.abort();
     const abort = new AbortController();
@@ -179,36 +181,61 @@ export function CriterionForm({
     value: f[key] ?? "",
     onChange: (ev: React.ChangeEvent<HTMLInputElement>) => setF({ [key]: numOrNull(ev.target.value) } as Partial<Draft["filters"]>),
   });
+  const scopePicker = shopForm?.scope.kind === "catalog"
+    ? <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+    : shopForm?.scope.kind === "collections"
+      ? <CollectionPicker collections={shopForm.scope.choices ?? []} value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />
+      : null;
+  function changeShop(shopId: string) {
+    const fields = shopSearchForm(shopId)?.fields;
+    abortRef.current?.abort();
+    setPreview({ phase: "idle", items: [], rejected: 0, examples: [], checked: 0, found: 0, errors: 0, message: "", testedPayload: "" });
+    setD((current) => ({ ...current, shopId, filters: {
+      ...current.filters,
+      categoryPaths: [],
+      productType: fields?.productType ? current.filters.productType : "any",
+      sizes: fields?.sizes ? current.filters.sizes : [],
+      genders: fields?.audience ? current.filters.genders : [],
+      modelRef: fields?.exactModel ? current.filters.modelRef : null,
+      preferredSellers: fields?.sellers ? current.filters.preferredSellers : [],
+      excludedSellers: fields?.sellers ? current.filters.excludedSellers : [],
+      condition: fields?.condition ? current.filters.condition : "any",
+      mandatorySpecs: fields?.specs ? current.filters.mandatorySpecs : [],
+      preferredSpecs: fields?.specs ? current.filters.preferredSpecs : [],
+      preferredCharacteristics: fields?.specs ? current.filters.preferredCharacteristics : [],
+      excludedCharacteristics: fields?.specs ? current.filters.excludedCharacteristics : [],
+      minRating: fields?.reviews ? current.filters.minRating : null,
+      minReviewCount: fields?.reviews ? current.filters.minReviewCount : null,
+    } }));
+  }
 
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="payload" value={payload} />
       <label className="block text-sm font-semibold text-ink">Boutique
-        <select className={`${input} mt-2`} value={d.shopId} onChange={e => setD({ ...d, shopId: e.target.value, filters: { ...d.filters, categoryPaths: [] } })}>
+        <select className={`${input} mt-2`} value={d.shopId} onChange={e => changeShop(e.target.value)}>
           {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
         </select>
       </label>
       {state.message && <div className="rounded-lg border border-promo/30 bg-promo-soft px-4 py-3 text-sm text-promo">{state.message}</div>}
 
-      {previewBeforeSave && <Card title="1. Que cherchez-vous ?">
+      {previewBeforeSave && <Card title={`1. Quoi chercher chez ${selectedShop} ?`}>
         <div className="space-y-4">
-          <Field label="Produit ou mots-clés" hint="Validez avec Entrée ou une virgule. Plusieurs mots sont des alternatives.">
-            <TagInput value={f.keywords} onChange={(v) => setF({ keywords: v })} placeholder="Ex. casquette, sneakers, TV 4K" ariaLabel="Produit ou mots-clés" />
+          {shopForm ? <div className="rounded-xl border border-brand-100 bg-brand-50/70 px-3 py-2.5"><p className="text-xs font-bold uppercase tracking-wide text-brand-800">{shopForm.connectorLabel}</p><p className="mt-0.5 text-sm text-ink-soft">{shopForm.intro}</p></div> : <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-ink-soft">Le formulaire de recherche de cette boutique n’est pas encore configuré. Demandez l’ajout des champs dans son connecteur.</p>}
+          <Field label="Produit ou mots-clés" hint="Validez avec Entrée ou une virgule. Chaque mot-clé est une piste de recherche.">
+            <TagInput value={f.keywords} onChange={(v) => setF({ keywords: v })} placeholder={shopForm?.keywordPlaceholder ?? "Ex. produit, marque ou référence"} ariaLabel="Produit ou mots-clés" />
           </Field>
-          <div>
-            <p className="mb-1 text-sm font-medium text-ink">Rayons à surveiller</p>
-            <p className="mb-2 text-xs text-ink-mute">Facultatif. Les rayons dépendent de la boutique choisie.</p>
-            {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
-            {d.shopId === "urban-jungle-ma" && <CollectionPicker collections={URBAN_JUNGLE_COLLECTIONS} value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          {shopForm && <div><p className="mb-1 text-sm font-medium text-ink">{shopForm.scope.label}</p><p className="mb-2 text-xs text-ink-mute">{shopForm.scope.hint}</p>{scopePicker}</div>}
+          {shopForm && <div className={`grid gap-4 ${shopForm.fields.productType ? "lg:grid-cols-4" : "sm:grid-cols-2"}`}>
             <Field label="Prix maximum (MAD)" htmlFor="quick-max-price"><input id="quick-max-price" className={input} inputMode="decimal" {...money("maxPrice")} /></Field>
-            <Field label="Pour qui ?" htmlFor="quick-gender" hint="Selon mon profil évite les offres mode non pertinentes.">
+            {shopForm.fields.audience && <Field label="Pour qui ?" htmlFor="quick-gender" hint="Choisissez un public pour éviter les produits hors sujet.">
               <select id="quick-gender" className={input} value={f.genders[0] ?? ""} onChange={ev => setF({ genders: ev.target.value ? [ev.target.value] : [] })}>
                 <option value="">Selon mon profil</option><option>Homme</option><option>Femme</option><option>Mixte</option><option>Garçon</option><option>Fille</option>
               </select>
-            </Field>
-          </div>
+            </Field>}
+            {shopForm.fields.sizes && <Field label="Taille / pointure" hint={shopForm.sizeHint}><TagInput value={f.sizes} onChange={(v) => setF({ sizes: v })} placeholder="Ex. 42, M, XL" ariaLabel={`Tailles ou pointures pour ${selectedShop}`} /></Field>}
+            {shopForm.fields.productType && <Field label="Type de produit"><select className={input} value={f.productType} onChange={ev => setF({ productType: ev.target.value as typeof f.productType })}><option value="any">Tous types</option><option value="shoes">Chaussures</option><option value="pants">Pantalons & jeans</option><option value="tops">Hauts & vestes</option></select></Field>}
+          </div>}
         </div>
       </Card>}
 
@@ -234,15 +261,14 @@ export function CriterionForm({
         </div>
       </Card>
 
-      <Card title="Où et quoi chercher">
+      <Card title={`Affiner la recherche · ${selectedShop}`}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <p className="mb-1 block text-sm font-medium text-ink">Rayons à surveiller</p>
-            <p className="mb-2 text-xs text-ink-mute">{d.shopId === "urban-jungle-ma" ? "Choisissez des collections Urban Jungle. Sans collection, la recherche parcourt les soldes." : "Choisissez où chercher sur Marjane Mall. Sans rayon, la recherche parcourt les pages promos configurées."}</p>
-            {d.shopId === "marjane-mall" && <CategoryPicker value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
-            {d.shopId === "urban-jungle-ma" && <CollectionPicker collections={URBAN_JUNGLE_COLLECTIONS} value={f.categoryPaths} onChange={(v) => setF({ categoryPaths: v })} />}
+            <p className="mb-1 block text-sm font-medium text-ink">{shopForm?.scope.label ?? "Périmètre de recherche"}</p>
+            {!previewBeforeSave && <><p className="mb-2 text-xs text-ink-mute">{shopForm?.scope.hint ?? "Aucun champ spécifique n’est encore configuré pour cette boutique."}</p>{scopePicker}</>}
+            {previewBeforeSave && shopForm?.scope.kind === "catalog" && <p className="text-xs text-ink-mute">Choisi dans l’étape précédente. Vous pouvez ajouter ici un chemin précis avec filtres.</p>}
             {e["filters.categoryPaths"] && <p className="mt-1 text-xs text-promo">{e["filters.categoryPaths"]}</p>}
-            <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
+            {shopForm?.scope.kind === "catalog" && <details className="mt-3 rounded-xl border border-paper-line bg-paper/60 px-3 py-2">
               <summary className="cursor-pointer text-xs font-medium text-ink-soft">Coller une URL ou un chemin exact (filtres pointure, genre…)</summary>
               <div className="mt-2">
                 <TagInput
@@ -254,42 +280,42 @@ export function CriterionForm({
                 />
                 <p className="mt-1 text-xs text-ink-mute">Une URL filtrée est ouverte dans le navigateur headless, car le site applique ces filtres en JavaScript.</p>
               </div>
-            </details>
+            </details>}
           </div>
-          <Field label="Mots-clés" hint="Au moins un doit apparaître dans le titre." error={e["filters.keywords"]}>
+          {!previewBeforeSave && <Field label="Mots-clés" hint="Au moins un doit apparaître dans le titre." error={e["filters.keywords"]}>
             <TagInput value={f.keywords} onChange={(v) => setF({ keywords: v })} placeholder="TV 4K, Smart TV" ariaLabel="Mots-clés" />
-          </Field>
-          <Field label="Mots-clés alternatifs / synonymes" error={e["filters.altKeywords"]}>
+          </Field>}
+          <Field label="Autres mots utilisés par la boutique" hint="Facultatif : ajoutez des synonymes ou termes d’annonce." error={e["filters.altKeywords"]}>
             <TagInput value={f.altKeywords} onChange={(v) => setF({ altKeywords: v })} placeholder="Téléviseur, QLED" ariaLabel="Synonymes" />
           </Field>
-          <Field label="Nom exact ou référence du modèle" hint="Facultatif. Ex. QA55Q6FAAUXMV" error={e["filters.modelRef"]}>
+          {shopForm?.fields.exactModel && <Field label="Nom exact ou référence du modèle" hint="Facultatif. Ex. QA55Q6FAAUXMV" error={e["filters.modelRef"]}>
             <input className={input} value={f.modelRef ?? ""} onChange={(ev) => setF({ modelRef: ev.target.value || null })} maxLength={60} />
-          </Field>
-          <Field label="État du produit">
+          </Field>}
+          {shopForm?.fields.condition && <Field label="État du produit">
             <select className={input} value={f.condition} onChange={(ev) => setF({ condition: ev.target.value as "any" | "new_only" })}>
               <option value="any">Indifférent</option>
               <option value="new_only">Neuf uniquement (exclut reconditionné / occasion)</option>
             </select>
-          </Field>
+          </Field>}
         </div>
       </Card>
 
       <Card title="Correspondance précise">
         <p className="mb-4 text-sm text-ink-mute">Un attribut obligatoire absent de la fiche exclut le produit. Les tailles du profil s’appliquent aux recherches mode si vous laissez ces champs vides.</p>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Type de produit">
+          {shopForm?.fields.productType && !previewBeforeSave && <Field label="Type de produit">
             <select aria-label="Type de produit" className={input} value={f.productType} onChange={ev => setF({productType: ev.target.value as typeof f.productType})}>
               <option value="any">Automatique selon le rayon</option><option value="shoes">Chaussures</option><option value="pants">Pantalons & jeans</option><option value="tops">Hauts & vestes</option>
             </select>
-          </Field>
-          <Field label="Tailles ou pointures obligatoires" hint="Une taille parmi celles indiquées doit être confirmée.">
+          </Field>}
+          {shopForm?.fields.sizes && !previewBeforeSave && <Field label="Tailles ou pointures obligatoires" hint={shopForm.sizeHint}>
             <TagInput value={f.sizes} onChange={v => setF({sizes:v})} placeholder="42 ou M ou 32, 33" ariaLabel="Tailles obligatoires" />
-          </Field>
-          <Field label="Genre obligatoire" hint="Le profil fournit la valeur par défaut pour la mode.">
+          </Field>}
+          {shopForm?.fields.audience && !previewBeforeSave && <Field label="Pour qui ?" hint="Selon mon profil applique vos préférences enregistrées.">
             <select aria-label="Genre obligatoire" className={input} value={f.genders[0] ?? ''} onChange={ev => setF({genders:ev.target.value ? [ev.target.value] : []})}>
               <option value="">Selon mon profil</option><option>Homme</option><option>Femme</option><option>Mixte</option><option>Garçon</option><option>Fille</option>
             </select>
-          </Field>
+          </Field>}
         </div>
       </Card>
 
@@ -304,12 +330,12 @@ export function CriterionForm({
           <Field label="Marques exclues">
             <TagInput value={f.excludedBrands} onChange={(v) => setF({ excludedBrands: v })} ariaLabel="Marques exclues" />
           </Field>
-          <Field label="Vendeurs préférés" hint="Ex. MARJANE (vendu par Marjane).">
+          {shopForm?.fields.sellers && <Field label="Vendeurs préférés" hint="Ex. MARJANE (vendu par Marjane).">
             <TagInput value={f.preferredSellers} onChange={(v) => setF({ preferredSellers: v })} ariaLabel="Vendeurs préférés" />
-          </Field>
-          <Field label="Vendeurs exclus">
+          </Field>}
+          {shopForm?.fields.sellers && <Field label="Vendeurs exclus">
             <TagInput value={f.excludedSellers} onChange={(v) => setF({ excludedSellers: v })} ariaLabel="Vendeurs exclus" />
-          </Field>
+          </Field>}
         </div>
       </Card>
 
@@ -318,9 +344,9 @@ export function CriterionForm({
           <Field label="Prix minimum" error={e["filters.minPrice"]}>
             <input className={input} inputMode="decimal" {...money("minPrice")} />
           </Field>
-          <Field label="Prix maximum" error={e["filters.maxPrice"]}>
+          {!previewBeforeSave && <Field label="Prix maximum" error={e["filters.maxPrice"]}>
             <input className={input} inputMode="decimal" {...money("maxPrice")} />
-          </Field>
+          </Field>}
           <Field label="Prix cible" hint="Alerte dès qu'il est atteint." error={e["filters.targetPrice"]}>
             <input className={input} inputMode="decimal" {...money("targetPrice")} />
           </Field>
@@ -330,7 +356,7 @@ export function CriterionForm({
         </div>
       </Card>
 
-      <Card title="Caractéristiques techniques">
+      {shopForm?.fields.specs && <Card title="Caractéristiques techniques">
         <div className="space-y-6">
           <RuleEditor
             title="Exigences obligatoires"
@@ -355,7 +381,7 @@ export function CriterionForm({
             </Field>
           </div>
         </div>
-      </Card>
+      </Card>}
 
       <Card title="Notifications Telegram">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -382,8 +408,9 @@ export function CriterionForm({
       {previewBeforeSave && <section className="rounded-[1.35rem] border border-paper-line bg-paper-card p-5" aria-label="Test de la recherche">
         <h2 className="font-display text-lg font-bold text-ink">2. Vérifier les résultats</h2>
         <p className="mt-1 text-sm text-ink-mute">Les correspondances apparaissent à mesure que leurs fiches sont vérifiées. Aperçu limité aux 2 premiers rayons et à 16 fiches, sans historique de prix.</p>
-        {!hasSearchScope && <p className="mt-3 text-sm text-promo">Ajoutez un produit ou choisissez un rayon pour commencer.</p>}
-        <button type="button" onClick={testSearch} disabled={preview.phase === "running" || !hasSearchScope} className={`${btn.secondary} mt-4 min-h-11 w-full sm:w-auto`}>
+        {!shopForm && <p className="mt-3 text-sm text-promo">Le connecteur de cette boutique doit d’abord fournir son formulaire de recherche.</p>}
+        {shopForm && !hasSearchScope && <p className="mt-3 text-sm text-promo">Ajoutez un produit ou choisissez un rayon pour commencer.</p>}
+        <button type="button" onClick={testSearch} disabled={preview.phase === "running" || !canPreview} className={`${btn.secondary} mt-4 min-h-11 w-full sm:w-auto`}>
           {preview.phase === "running" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <SearchCheck className="h-4 w-4" aria-hidden />}
           {preview.phase === "running" ? "Test en cours…" : preview.phase === "idle" ? "Tester la recherche" : "Relancer le test"}
         </button>
@@ -411,7 +438,7 @@ export function CriterionForm({
       </section>}
       <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] sm:items-end">
         {previewBeforeSave && <p className="text-xs text-ink-mute">3. La collecte complète démarre après validation.</p>}
-        <SubmitButton pendingLabel="Enregistrement…" disabled={previewBeforeSave && !isCurrentPreview}>{previewBeforeSave ? "Valider et créer la recherche" : submitLabel}</SubmitButton>
+        <SubmitButton pendingLabel="Enregistrement…" disabled={previewBeforeSave && (!isCurrentPreview || !shopForm)}>{previewBeforeSave ? "Valider et créer la recherche" : submitLabel}</SubmitButton>
       </div>
     </form>
   );

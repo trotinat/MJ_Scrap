@@ -1,4 +1,4 @@
-import { madToCents, type ListingItem, type ProductDetail, type StockStatus } from "@mdw/shared";
+import { madToCents, type ListingItem, type ProductDetail, type ShopSearchFormConfig, type StockStatus } from "@mdw/shared";
 import type { DetailResult, ListingResult, SiteAdapter } from "./adapter";
 import { HttpError, PoliteFetcher, type FetcherOptions } from "./http";
 import { canonicalBrand, cleanTitle, extractModelRef } from "./normalize";
@@ -17,6 +17,7 @@ export interface ShopifyShop {
   seller: string;
   dealPagePaths: string[];
   collections: { path: string; label: string }[];
+  searchFormConfig: ShopSearchFormConfig;
   brandAliases?: Record<string, string>;
 }
 

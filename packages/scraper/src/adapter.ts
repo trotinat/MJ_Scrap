@@ -1,4 +1,4 @@
-import type { ListingItem, ProductDetail } from "@mdw/shared";
+import { MARJANE_SEARCH_FORM, type ListingItem, type ProductDetail, type ShopSearchFormConfig } from "@mdw/shared";
 import { AccessBlockedError, HttpError, PoliteFetcher, type FetcherOptions } from "./http";
 import { ListingRenderer } from "./browser";
 import { parseListingHtml } from "./parse/listing";
@@ -33,6 +33,8 @@ export type DetailResult =
 export interface SiteAdapter {
   /** Stable boutique id; older injected test adapters default to Marjane. */
   readonly shopId?: string;
+  /** Store-specific search controls displayed by Hawta. */
+  readonly searchFormConfig?: ShopSearchFormConfig;
   readonly dealPagePaths?: string[];
   discover(path: string, maxPages: number): Promise<ListingResult>;
   fetchProduct(url: string): Promise<DetailResult>;
@@ -47,6 +49,7 @@ export interface SiteAdapter {
  */
 export class MarjaneAdapter implements SiteAdapter {
   readonly shopId = "marjane-mall";
+  readonly searchFormConfig = MARJANE_SEARCH_FORM;
   private readonly fetcher: PoliteFetcher;
   private renderer: ListingRenderer | null = null;
   private renderDisabled = false;
