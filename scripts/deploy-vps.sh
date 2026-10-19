@@ -48,7 +48,7 @@ echo "Applying database migrations..."
 "${COMPOSE[@]}" run --rm migrate node dist/cli.js migrate
 
 echo "Starting the updated app..."
-"${COMPOSE[@]}" up -d --remove-orphans db backup worker web caddy
+"${COMPOSE[@]}" up -d --remove-orphans db backup node-exporter worker web caddy
 "${COMPOSE[@]}" restart caddy
 
 echo "Checking app health..."

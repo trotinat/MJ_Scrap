@@ -99,10 +99,29 @@ services:
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+      node-exporter: { condition: service_started }
     init: true
     deploy:
       resources:
         limits: { memory: 512m }
+    logging: *logging
+
+  # Host telemetry is private to the Compose network. The authenticated Ops
+  # endpoint reads these metrics; the exporter has no published host port.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+    pid: host
+    expose: ["9100"]
     logging: *logging
 
   caddy:

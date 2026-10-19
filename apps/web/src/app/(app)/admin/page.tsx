@@ -1,4 +1,5 @@
 import { telegramConfigFromEnv } from "@mdw/notifications";
+import Link from "next/link";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { systemHealth } from "@/lib/queries";
 import { formatMoroccoTime, relativeTime } from "@/lib/format";
@@ -22,6 +23,7 @@ export default async function AdminPage() {
   return (
     <>
       <PageHeader title="Administration et santé du système" description="État des composants. Aucun secret n'est affiché." />
+      <Link href="/observatoire" className="mb-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink px-4 text-sm font-semibold text-white transition hover:bg-brand-700">Ouvrir l’observatoire VPS <span aria-hidden="true">↗</span></Link>
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Base de données">
           <dl className="space-y-2 text-sm">
