@@ -61,10 +61,10 @@ export const CITY_FASHION_CATEGORY_SCOPES = [
 export const CITY_FASHION_SEARCH_FORM: ShopSearchFormConfig = {
   connectorLabel: "Connecteur City Fashion",
   intro: "Parcourez les promotions et les rayons mode de City Fashion. Les prix, réductions annoncées et disponibilités proviennent des fiches publiques de la boutique.",
-  keywordPlaceholder: "Ex. baskets homme, Pepe Jeans, pointure 42",
-  sizeHint: "Taille ou pointure telle qu’affichée par City Fashion.",
+  keywordPlaceholder: "Ex. New Balance, veste homme, Pepe Jeans",
+  sizeHint: "",
   scope: { kind: "collections", label: "Pages et rayons City Fashion", hint: "Choisissez les pages à parcourir. La collecte respecte les règles publiques du site et s’arrête si l’accès est refusé.", choices: [...CITY_FASHION_CATEGORY_SCOPES] },
-  fields: { audience: true, sizes: true, productType: true, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
+  fields: { audience: true, sizes: false, productType: true, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
 };
 
 export const SHOP_SEARCH_FORMS: Record<string, ShopSearchFormConfig> = {
