@@ -52,11 +52,27 @@ export const KITEA_SEARCH_FORM: ShopSearchFormConfig = {
   fields: { audience: false, sizes: false, productType: false, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
 };
 
+export const CITY_FASHION_CATEGORY_SCOPES = [
+  { path: "/25-promotions", label: "Promotions" },
+  { path: "/promotions", label: "Toutes les promotions" },
+  { path: "/27-vetements-homme", label: "Vêtements homme" },
+] as const;
+
+export const CITY_FASHION_SEARCH_FORM: ShopSearchFormConfig = {
+  connectorLabel: "Connecteur City Fashion",
+  intro: "Parcourez les promotions et les rayons mode de City Fashion. Les prix, réductions annoncées et disponibilités proviennent des fiches publiques de la boutique.",
+  keywordPlaceholder: "Ex. baskets homme, Pepe Jeans, pointure 42",
+  sizeHint: "Taille ou pointure telle qu’affichée par City Fashion.",
+  scope: { kind: "collections", label: "Pages et rayons City Fashion", hint: "Choisissez les pages à parcourir. La collecte respecte les règles publiques du site et s’arrête si l’accès est refusé.", choices: [...CITY_FASHION_CATEGORY_SCOPES] },
+  fields: { audience: true, sizes: true, productType: true, exactModel: false, sellers: false, condition: false, specs: false, reviews: false },
+};
+
 export const SHOP_SEARCH_FORMS: Record<string, ShopSearchFormConfig> = {
   "marjane-mall": MARJANE_SEARCH_FORM,
   "urban-jungle-ma": URBAN_JUNGLE_SEARCH_FORM,
   "kitea-ma": KITEA_SEARCH_FORM,
   kitea: KITEA_SEARCH_FORM,
+  "city-fashion-ma": CITY_FASHION_SEARCH_FORM,
 };
 
 export function shopSearchForm(shopId: string): ShopSearchFormConfig | null {

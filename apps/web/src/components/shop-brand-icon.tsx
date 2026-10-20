@@ -10,6 +10,7 @@ const SHOP_LABELS: Array<{ label: string; names: string[]; hosts: string[] }> = 
   { label: "Marjane Mall", names: ["marjane mall"], hosts: ["marjanemall.ma"] },
   { label: "Urban Jungle Maroc", names: ["urban jungle", "urban jungle maroc"], hosts: ["ma.urbanjunglestore.com"] },
   { label: "Kitea", names: ["kitea", "kitea maroc", "kitea ma"], hosts: ["kitea.com", "kitea.ma"] },
+  { label: "City Fashion", names: ["city fashion", "cityfashion"], hosts: ["cityfashion.ma"] },
 ];
 
 /** Consistent boutique name from a saved shop name, shop ID, or product URL. */

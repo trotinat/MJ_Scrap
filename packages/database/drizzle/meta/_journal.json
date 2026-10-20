@@ -64,6 +64,13 @@
       "when": 1792440000000,
       "tag": "0008_kitea",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792443600000,
+      "tag": "0009_city_fashion",
+      "breakpoints": true
     }
   ]
 }

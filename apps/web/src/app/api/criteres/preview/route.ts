@@ -1,6 +1,6 @@
 import { getAppSettings, getDb, getUserProfile, requireUserShop, MARJANE_SHOP_ID } from "@mdw/database";
 import { evaluate } from "@mdw/scoring";
-import { configureProxyFromEnv, createKiteaAdapter, createUrbanJungleAdapter, KITEA_DEAL_PATHS, KITEA_SHOP_ID, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
+import { configureProxyFromEnv, createCityFashionAdapter, CITY_FASHION_DEAL_PATHS, CITY_FASHION_SHOP_ID, createKiteaAdapter, createUrbanJungleAdapter, KITEA_DEAL_PATHS, KITEA_SHOP_ID, MarjaneAdapter, URBAN_JUNGLE, type SiteAdapter } from "@mdw/scraper";
 import { anyPhraseMatches, criterionInputSchema, extractSpecs, fitsUrbanJungleProfile, normalizeRef, OUT_OF_PROFILE_REASON, withProfileConstraints, type MatchableProduct, type PriceHistoryFacts } from "@mdw/shared";
 import { requireUser } from "@/lib/session";
 
@@ -25,7 +25,8 @@ export async function POST(request: Request) {
   catch { return Response.json({ message: "Boutique indisponible pour ce compte." }, { status: 403 }); }
   const urbanJungle = parsed.data.shopId === URBAN_JUNGLE.shopId;
   const kitea = parsed.data.shopId === KITEA_SHOP_ID || parsed.data.shopId === "kitea";
-  if (parsed.data.shopId !== MARJANE_SHOP_ID && !urbanJungle && !kitea) return Response.json({ message: "Le test de cette boutique sera disponible avec son collecteur." }, { status: 409 });
+  const cityFashion = parsed.data.shopId === CITY_FASHION_SHOP_ID;
+  if (parsed.data.shopId !== MARJANE_SHOP_ID && !urbanJungle && !kitea && !cityFashion) return Response.json({ message: "Le test de cette boutique sera disponible avec son collecteur." }, { status: 409 });
   if (running) return Response.json({ message: "Un test est déjà en cours. Réessayez dans un instant." }, { status: 429 });
   running = true;
 
@@ -45,25 +46,26 @@ export async function POST(request: Request) {
         const settings = await getAppSettings(getDb());
         const profile = await getUserProfile(getDb(), user.id);
         const criterion = withProfileConstraints({ id: "preview", ...parsed.data }, profile);
-        const defaultPaths = urbanJungle ? URBAN_JUNGLE.dealPagePaths : kitea ? KITEA_DEAL_PATHS : settings.dealPagePaths;
+        const defaultPaths = urbanJungle ? URBAN_JUNGLE.dealPagePaths : kitea ? KITEA_DEAL_PATHS : cityFashion ? CITY_FASHION_DEAL_PATHS : settings.dealPagePaths;
         const paths = (criterion.filters.categoryPaths.length ? criterion.filters.categoryPaths : defaultPaths).slice(0, 2);
         if (!paths.length) throw new Error("Choisissez au moins un rayon à parcourir.");
         configureProxyFromEnv();
         const http = {
           userAgent: process.env.SCRAPER_USER_AGENT || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-          minDelayMs: kitea ? Math.max(settings.requestDelayMs, 10_000) : settings.requestDelayMs,
+          minDelayMs: kitea ? Math.max(settings.requestDelayMs, 10_000) : cityFashion ? Math.max(settings.requestDelayMs, 5_000) : settings.requestDelayMs,
           timeoutMs: 25_000,
           maxRetries: 1,
           respectRobots: true,
         };
         if (kitea) http.userAgent = "HawtaPriceMonitor/1.0 (+https://github.com/trotinat/MJ_Scrap)";
-        adapter = urbanJungle ? createUrbanJungleAdapter(http) : kitea ? createKiteaAdapter(http) : new MarjaneAdapter({
+        if (cityFashion) http.userAgent = "HawtaPriceMonitor/1.0 (+https://github.com/trotinat/MJ_Scrap)";
+        adapter = urbanJungle ? createUrbanJungleAdapter(http) : kitea ? createKiteaAdapter(http) : cityFashion ? createCityFashionAdapter(http) : new MarjaneAdapter({
           ...http,
           renderMode: "auto",
           renderTimeoutMs: 40_000,
           renderChannel: "auto",
         });
-        send({ type: "start", paths, limit: kitea ? 4 : 16 });
+        send({ type: "start", paths, limit: kitea || cityFashion ? 4 : 16 });
         const seen = new Set<string>();
         for (const path of paths) {
           if (cancelled || request.signal.aborted || checked >= 16) break;
@@ -73,7 +75,7 @@ export async function POST(request: Request) {
             send({ type: "listing", path, count: listing.items.length });
             let checkedInPath = 0;
             for (const item of listing.items) {
-              if (cancelled || request.signal.aborted || checked >= (kitea ? 4 : 16) || checkedInPath >= (urbanJungle ? 16 : kitea ? 4 : 8)) break;
+              if (cancelled || request.signal.aborted || checked >= (kitea || cityFashion ? 4 : 16) || checkedInPath >= (urbanJungle ? 16 : kitea || cityFashion ? 4 : 8)) break;
               if (seen.has(item.url)) continue;
               seen.add(item.url);
               // A title can disqualify a card before price/detail work.
@@ -86,7 +88,7 @@ export async function POST(request: Request) {
               checkedInPath++;
               try {
                 // These listing cards include the fields needed for a preview; details are fetched during collection.
-                const result = (urbanJungle || kitea) && item.priceCents !== null
+                const result = (urbanJungle || kitea || cityFashion) && item.priceCents !== null
                   ? { kind: "ok" as const, detail: { ...item, brand: item.brand ?? null, priceCents: item.priceCents, modelRef: null, stock: item.stock ?? "unknown" as const, rawSpecs: item.rawSpecs ?? {} } }
                   : await adapter.fetchProduct(item.url);
                 if (result.kind === "error") { errors++; send({ type: "progress", checked, found, errors }); continue; }
