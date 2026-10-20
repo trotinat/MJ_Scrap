@@ -45,10 +45,7 @@ export async function createUser(db: DbOrTx, email: string, password: string) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("Adresse e-mail invalide");
   const passwordHash = await hashPassword(password);
   const [row] = await db.insert(users).values({ email: normalized, passwordHash }).returning();
-  await db.insert(userShops).values([
-    { userId: row!.id, shopId: "marjane-mall" },
-    { userId: row!.id, shopId: "city-fashion-ma" },
-  ]).onConflictDoNothing();
+  await db.insert(userShops).values({ userId: row!.id, shopId: "marjane-mall" }).onConflictDoNothing();
   return row!;
 }
 
