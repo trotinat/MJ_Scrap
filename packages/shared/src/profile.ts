@@ -33,6 +33,15 @@ export const MARJANE_FACETS = {
   },
 } as const;
 
+/** A style the shopper asked one boutique to stop showing ("Pas mon style"). */
+export const hiddenStyleSchema = z.object({
+  shopId: z.string().trim().min(1).max(60),
+  kind: z.enum(["product", "kind", "collection", "brand"]),
+  value: z.string().trim().min(1).max(500),
+  label: z.string().trim().min(1).max(160),
+});
+export type HiddenStyle = z.infer<typeof hiddenStyleSchema>;
+
 /** The shopper's own characteristics, used to pre-filter and rank every search. */
 export const shopperProfileSchema = z
   .object({
@@ -49,6 +58,7 @@ export const shopperProfileSchema = z
     preferredSellers: z.array(z.string().trim().max(60)).max(40).default([]),
     maxPrice: z.union([z.number(), z.null()]).optional().transform((v) => (v == null ? null : v)),
     minDiscountPct: z.union([z.number(), z.null()]).optional().transform((v) => (v == null ? null : v)),
+    hiddenStyles: z.array(hiddenStyleSchema).max(200).default([]),
   })
   .default({});
 export type ShopperProfile = z.infer<typeof shopperProfileSchema>;

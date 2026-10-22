@@ -136,6 +136,12 @@ describe("Urban Jungle product detail", () => {
     expect(sizeFailures(d.rawSpecs, ["40"])).toEqual(["taille non vérifiable : aucune taille produit confirmée"]);
   });
 
+  it("keeps the store's collection tags, not seasons, audiences, types or brands", () => {
+    const r = raw(PUMA);
+    r.tags = ["Chaussures", "EOSS SP26", "MEN", "SS26", "World Cup Collection", "World Cup", "AFCON", "Puma", "BOOST-1", "badge:sustainable", "Puma T7"];
+    expect(shopifyProductDetail(URBAN_JUNGLE, toShopifyProduct(r, "mad")!).rawSpecs.Collection).toBe("World Cup, AFCON, Puma T7");
+  });
+
   it("keeps a one-size accessory and its article code", () => {
     const d = shopifyProductDetail(URBAN_JUNGLE, product("puma-1976-micro-grip-bag-black-091824-02"));
     expect(d).toMatchObject({ priceCents: 24900, originalPriceCents: 41900, advertisedDiscountPct: 41, stock: "in_stock" });

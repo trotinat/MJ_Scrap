@@ -26,7 +26,7 @@ export async function reevaluateSaved(db: Db, pool: pg.Pool) {
       for(const c of criteria) {
         if (c.shopId !== o.shopId) continue;
         let ev = evaluate(c,{title:o.title,brand:p.brand,modelRef:p.modelRef,categoryPath:p.categoryPath,listingPaths:paths.get(o.id),priceCents:o.currentPriceCents,originalPriceCents:o.originalPriceCents,advertisedDiscountPct:o.advertisedDiscountPct,seller:o.seller,stock:o.stockStatus,rating:o.rating,reviewCount:o.reviewCount,rawSpecs:p.rawSpecs,specs:p.specs},historyFacts(history),settings);
-        if (c.shopId === URBAN_JUNGLE_SHOP_ID) ev = urbanJungleVerdict(ev,{title:o.title,brand:p.brand,rawSpecs:p.rawSpecs,categoryPath:p.categoryPath},profiles.get(c.id));
+        if (c.shopId === URBAN_JUNGLE_SHOP_ID) ev = urbanJungleVerdict(ev,{url:o.url,title:o.title,brand:p.brand,rawSpecs:p.rawSpecs,categoryPath:p.categoryPath},profiles.get(c.id));
         const valid = c.enabled && o.status === 'active' && ev.isMatch;
         if(valid) matches++;
         const values = {isMatch:valid,score:ev.score,dealClass:ev.dealClass,explanation:ev.explanation,breakdown:ev.breakdown,failedReasons:ev.failedReasons,priceCents:o.currentPriceCents,lastEvaluatedAt:new Date()};

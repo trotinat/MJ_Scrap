@@ -108,6 +108,7 @@ export type DealRow = {
   image_urls: string[];
   brand: string | null;
   category_path: string | null;
+  raw_specs: Record<string, string> | null;
   seller: string | null;
   current_price_cents: number;
   original_price_cents: number | null;
@@ -141,6 +142,9 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
   if (f.maxPrice !== undefined) where.push(sql`o.current_price_cents <= ${Math.round(f.maxPrice * 100)}`);
   if (f.stock) where.push(sql`o.stock_status = ${f.stock}`);
   if (f.q) where.push(sql`o.title ilike ${`%${f.q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`}`);
+  // Styles hidden with "Pas mon style" take effect at once, before the next collection re-evaluates the matches.
+  const hidden = await offersHiddenByProfile(userId, PROFILE_FILTERED_SHOPS, freshSince);
+  if (hidden.length) where.push(sql`o.id not in (${sql.join(hidden.map((h) => sql`${h.id}`), sql`, `)})`);
   const having = f.minScore !== undefined ? sql`having max(m.score) >= ${f.minScore}` : sql``;
   const order =
     f.sort === "price"
@@ -169,7 +173,7 @@ export async function listDeals(f: DealFilters): Promise<{ rows: DealRow[]; tota
     ${having}`;
 
   const rows = await db().execute<DealRow>(sql`
-    select o.id as offer_id, o.shop_id, sh.name as shop_name, p.id as product_id, o.title, o.url, p.image_url, p.image_urls, p.brand, p.category_path, o.seller,
+    select o.id as offer_id, o.shop_id, sh.name as shop_name, p.id as product_id, o.title, o.url, p.image_url, p.image_urls, p.brand, p.category_path, p.raw_specs, o.seller,
       o.current_price_cents, o.original_price_cents, o.advertised_discount_pct::float as advertised_discount_pct,
       o.stock_status, o.status as offer_status, o.last_success_at, o.first_seen_at, prev.price_cents as prev_price_cents, o.min_price_cents,
       case when prev.price_cents > 0 then round(((o.current_price_cents - prev.price_cents)::numeric / prev.price_cents) * 1000) / 10 end::float as drop_pct,
@@ -263,11 +267,11 @@ async function offersHiddenByProfile(userId: string, allowedShops: string[], sin
   const shopIds = PROFILE_FILTERED_SHOPS.filter((id) => allowedShops.includes(id));
   if (!shopIds.length) return [];
   const profile = (await getUserSettings(db(), userId)).shopperProfile;
-  const rows = await db().execute<{ id: string; shop_id: string; title: string; brand: string | null; raw_specs: Record<string, string> | null; category_path: string | null; fresh: boolean }>(sql`
-    select o.id, o.shop_id, o.title, p.brand, p.raw_specs, p.category_path, o.last_success_at >= ${since} as fresh
+  const rows = await db().execute<{ id: string; shop_id: string; url: string; title: string; brand: string | null; raw_specs: Record<string, string> | null; category_path: string | null; fresh: boolean }>(sql`
+    select o.id, o.shop_id, o.url, o.title, p.brand, p.raw_specs, p.category_path, o.last_success_at >= ${since} as fresh
     from product_offers o join products p on p.id = o.product_id
     where o.shop_id in (${sql.join(shopIds.map((id) => sql`${id}`), sql`, `)}) and o.status = 'active' and o.current_price_cents is not null`);
-  return rows.rows.filter((r) => !fitsUrbanJungleProfile({ title: r.title, brand: r.brand, rawSpecs: r.raw_specs ?? {}, categoryPath: r.category_path }, profile));
+  return rows.rows.filter((r) => !fitsUrbanJungleProfile({ url: r.url, title: r.title, brand: r.brand, rawSpecs: r.raw_specs ?? {}, categoryPath: r.category_path }, profile));
 }
 
 /* ----------------------------------------------------------------- product */

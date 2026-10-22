@@ -50,7 +50,7 @@ function shortMad(cents: number): string {
   return formatMad(cents).replace(",00", "").replace(/\s?MAD$/, "");
 }
 
-export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; size?: "md" | "lg"; compareForm?: string }) {
+export function DealCard({ d, size = "md", compareForm, action }: { d: DealCardData; size?: "md" | "lg"; compareForm?: string; action?: React.ReactNode }) {
   const f = dealFacts(d);
   const big = size === "lg";
   const gallery = [...new Set([...(d.imageUrls ?? []), ...(d.imageUrl ? [d.imageUrl] : [])])];
@@ -89,7 +89,7 @@ export function DealCard({ d, size = "md", compareForm }: { d: DealCardData; siz
       </div>
 
       <div className={cx("flex min-w-0 flex-1 flex-col gap-1.5 sm:gap-2", big ? "p-3.5 sm:p-5" : "p-3 sm:p-3.5")}>
-        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{logo ? <Image src={logo.src} alt={logo.alt} title={logo.alt} width={32} height={32} unoptimized={logo.src.endsWith(".svg")} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div><div className="flex shrink-0 items-center gap-2">{d.stockStatus && <StockBadge stock={d.stockStatus} />}<ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 rounded-xl px-2.5 py-2" /></div></div>
+        <div className="flex min-w-0 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-1.5">{logo ? <Image src={logo.src} alt={logo.alt} title={logo.alt} width={32} height={32} unoptimized={logo.src.endsWith(".svg")} className="h-7 w-7 shrink-0 rounded-lg object-contain" /> : <p className="truncate text-[11px] font-semibold text-ink-mute">{source}</p>}</div><div className="flex shrink-0 items-center gap-2">{d.stockStatus && <StockBadge stock={d.stockStatus} />}{action}<ShareButton url={d.url} title={d.title} label="" className="min-h-11 min-w-11 rounded-xl px-2.5 py-2" /></div></div>
         {d.score !== undefined && d.dealClass && (
           <p className={cx("text-[11px] font-bold", d.dealClass === "ordinary" ? "text-ink-mute" : "text-brand-700")}>
             {DEAL_CLASS_LABELS[d.dealClass]} · {d.score}/100

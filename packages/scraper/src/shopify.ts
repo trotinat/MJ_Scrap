@@ -1,7 +1,7 @@
-import { madToCents, type ListingItem, type ProductDetail, type ShopSearchFormConfig, type StockStatus } from "@mdw/shared";
+import { madToCents, normalizeText, type ListingItem, type ProductDetail, type ShopSearchFormConfig, type StockStatus } from "@mdw/shared";
 import type { DetailResult, ListingResult, SiteAdapter } from "./adapter";
 import { HttpError, PoliteFetcher, type FetcherOptions } from "./http";
-import { canonicalBrand, cleanTitle, extractModelRef } from "./normalize";
+import { canonicalBrand, cleanTitle, extractModelRef, KNOWN_BRANDS } from "./normalize";
 import { safeHttpUrl } from "./parse/dom";
 import { ProductParseError } from "./parse/product";
 import { assertAllowedUrl } from "./url";
@@ -129,6 +129,16 @@ function styleCode(variants: Variant[]): string | null {
   return codes.size === 1 && code && /^[A-Z0-9][A-Z0-9-]{3,24}$/i.test(code) ? code : null;
 }
 
+/** Store tags that are seasons, audiences, product types or internal codes rather than collections. */
+const NOT_COLLECTION = /^(?:(?:eoss\s+)?(?:ss|aw|fw|fa|ho|su|sp)\d{2}|men|women|boy|girl|gen|unisex|kids?|hauts|bas|chaussures|tops|bottoms|footwear|clothing|accessories|accessoires|v[eê]tements|badge:.*|[a-z0-9]+-\d+)$/i;
+
+/** Collections and lines the store tags a product with ("World Cup Collection" -> "World Cup"). */
+function storeCollections(p: ShopifyProduct): string[] {
+  const brands = new Set([p.vendor ?? "", ...KNOWN_BRANDS].map((b) => normalizeText(b)));
+  const names = p.tags.map((t) => t.trim().replace(/\s+collection$/i, "")).filter((t) => t && !NOT_COLLECTION.test(t) && !brands.has(normalizeText(t)));
+  return names.filter((n, i) => names.findIndex((o) => normalizeText(o) === normalizeText(n)) === i);
+}
+
 const isFootwear = (p: ShopifyProduct) => /^footwear$/i.test(p.productType ?? "") || p.tags.some((t) => /^chaussures$/i.test(t.trim()));
 
 function specsOf(p: ShopifyProduct): Record<string, string> {
@@ -138,6 +148,8 @@ function specsOf(p: ShopifyProduct): Record<string, string> {
   const genders = [...new Set(p.tags.map((t) => GENDER_TAGS[t.trim().toUpperCase()]).filter((g): g is string => !!g))];
   if (genders.length) specs.Genre = genders.join(", ");
   if (genders.length && genders.every((g) => g === "Garçon" || g === "Fille")) specs.Public = "Enfant";
+  const collections = storeCollections(p);
+  if (collections.length) specs.Collection = collections.join(", ");
   const sized = p.variants.filter((v) => v.size && !PLACEHOLDER_SIZES.test(v.size));
   const sizes = (available: boolean) => [...new Set(sized.filter((v) => v.available === available).map((v) => cleanSize(v.size!)))].join(", ");
   // Size filters read every "taille/pointure" label when no "disponibles" one exists: sold-out sizes use a neutral label.

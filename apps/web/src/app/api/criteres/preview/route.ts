@@ -102,7 +102,7 @@ export async function POST(request: Request) {
                   rawSpecs: d.rawSpecs, specs: extractSpecs(d.title, d.rawSpecs),
                 };
                 const verdict = evaluate(criterion, product, noHistory, settings);
-                if (verdict.isMatch && urbanJungle && !fitsUrbanJungleProfile({ title: d.title, brand: d.brand, rawSpecs: d.rawSpecs }, profile)) {
+                if (verdict.isMatch && urbanJungle && !fitsUrbanJungleProfile({ url: d.url, title: d.title, brand: d.brand, rawSpecs: d.rawSpecs }, profile)) {
                   verdict.isMatch = false;
                   verdict.failedReasons = [OUT_OF_PROFILE_REASON];
                 }

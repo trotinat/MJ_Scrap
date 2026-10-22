@@ -392,7 +392,7 @@ async function collect(
       const byCriterion = new Map(previousMatches.map(m=>[m.criterionId,m]));
       for (const criterion of criteria) {
         let ev = evaluate(criterion, saved.matchable, saved.facts, settings);
-        if (urbanJungleProfiles) ev = urbanJungleVerdict(ev, saved.matchable, urbanJungleProfiles.get(criterion.id));
+        if (urbanJungleProfiles) ev = urbanJungleVerdict(ev, { ...saved.matchable, url: obs.url }, urbanJungleProfiles.get(criterion.id));
         const prevRow = byCriterion.get(criterion.id);
         // Only keep rows for products that are relevant to this criterion.
         if (!ev.isMatch && !prevRow && !verifiedCriterionIds?.has(criterion.id)) continue;

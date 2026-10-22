@@ -2,7 +2,9 @@ import { UserCog } from "lucide-react";
 import { getDb, getUserProfile, listUserShops } from "@mdw/database";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/ui";
+import { URBAN_JUNGLE_SHOP_ID } from "@mdw/shared";
 import { ProfileForm } from "./profile-form";
+import { HiddenStylesList } from "./hidden-styles";
 
 export const metadata = { title: "Mon profil" };
 
@@ -23,6 +25,7 @@ export default async function ProfilePage() {
           boutiques de marque) sont automatiquement filtrés par genre, pointure, taille et couleur, et vos marques, vendeurs et budget sont appliqués partout.
         </p>
       </div>
+      {shops.some((shop) => shop.id === URBAN_JUNGLE_SHOP_ID) && <HiddenStylesList styles={profile.hiddenStyles.filter((s) => s.shopId === URBAN_JUNGLE_SHOP_ID)} />}
       <ProfileForm initial={profile} />
       <section className="mt-6 rounded-2xl border border-paper-line bg-paper-card p-4 sm:p-5" aria-labelledby="shops-title">
         <h2 id="shops-title" className="text-base font-bold text-ink">Mes boutiques disponibles</h2>

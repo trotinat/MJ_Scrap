@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, BellRing, CheckCheck, Search, ShieldCheck, TrendingDown, Zap, Radar } from "lucide-react";
+import { ArrowUpRight, BellRing, CheckCheck, EyeOff, Search, ShieldCheck, TrendingDown, Zap, Radar } from "lucide-react";
 import { getDb, getUserSettings, listCriteria } from "@mdw/database";
 import { requireUser } from "@/lib/session";
-import { profileHighlights, type DealClass, type ShopperProfile } from "@mdw/shared";
+import { profileHighlights, URBAN_JUNGLE_SHOP_ID, urbanJungleStyles, type DealClass, type ShopperProfile } from "@mdw/shared";
+import { StyleMenu, StyleUndoNotice } from "@/components/style-menu";
 import { telegramStatus } from "@/lib/telegram-status";
 import { CheckNowButton } from "@/components/check-now-button";
 import { DealCard, dealGrid, type DealCardData } from "@/components/deal-card";
@@ -53,6 +54,11 @@ const fromFlash = (r: FlashRow, profile: ShopperProfile): DealCardData => ({
   highlights: profileHighlights({ rawSpecs: r.raw_specs, categoryPath: r.category_path, brand: r.brand, title: r.title, seller: r.seller, priceCents: r.current_price_cents, discountPct: r.advertised_discount_pct }, profile),
 });
 
+/** "Pas mon style" for Urban Jungle results only. */
+const styleMenu = (d: DealRow) => d.shop_id === URBAN_JUNGLE_SHOP_ID
+  ? <StyleMenu title={d.title} styles={urbanJungleStyles({ url: d.url, title: d.title, brand: d.brand, rawSpecs: d.raw_specs ?? {} })} />
+  : undefined;
+
 /** Time only ("18:00") for today, full date otherwise. */
 function when(d: Date): string {
   const full = formatMoroccoTime(d);
@@ -90,6 +96,7 @@ export default async function HomePage() {
       brand: r => r.brand,
     }, 2);
   const drops = personal.filter(d => d.drop_pct !== null && d.drop_pct < 0).length;
+  const hiddenStyles = settings.shopperProfile.hiddenStyles.filter(s => s.shopId === URBAN_JUNGLE_SHOP_ID).length;
   return (
     <>
       <section className="deal-hero relative mb-5 overflow-hidden rounded-[1.75rem] p-5 text-white sm:p-8">
@@ -112,7 +119,7 @@ export default async function HomePage() {
 
       <section className="mb-8">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div><p className="section-eyebrow">SÉLECTION PERSONNELLE</p><h2 className="mt-1 font-display text-2xl font-extrabold sm:text-3xl">Repérés pour vous</h2><p className="mt-2 text-sm text-ink-mute">{active.length} recherche{active.length > 1 ? "s" : ""} active{active.length > 1 ? "s" : ""} · produits variés · prix récents</p></div>
+          <div><p className="section-eyebrow">SÉLECTION PERSONNELLE</p><h2 className="mt-1 font-display text-2xl font-extrabold sm:text-3xl">Repérés pour vous</h2><p className="mt-2 text-sm text-ink-mute">{active.length} recherche{active.length > 1 ? "s" : ""} active{active.length > 1 ? "s" : ""} · produits variés · prix récents</p>{hiddenStyles > 0 && <Link href="/profil#styles-masques" className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline"><EyeOff className="h-4 w-4" aria-hidden /> {hiddenStyles} style{hiddenStyles > 1 ? "s" : ""} masqué{hiddenStyles > 1 ? "s" : ""} chez Urban Jungle · Gérer</Link>}</div>
           <Link href="/promotions" className={`${btn.secondary} hidden sm:inline-flex`}>Tous mes résultats <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
         <nav aria-label="Résultats par recherche" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-clip">
@@ -123,8 +130,8 @@ export default async function HomePage() {
           ))}
         </nav>
         {hero ? <>
-          <div className="mb-4"><DealCard d={fromDeal(hero, settings.shopperProfile)} size="lg" /></div>
-          <DealResultsGrid className={dealGrid}>{rest.map(d => <DealCard key={d.offer_id} d={fromDeal(d, settings.shopperProfile)} />)}</DealResultsGrid>
+          <div className="mb-4"><DealCard d={fromDeal(hero, settings.shopperProfile)} size="lg" action={styleMenu(hero)} /></div>
+          <DealResultsGrid className={dealGrid}>{rest.map(d => <DealCard key={d.offer_id} d={fromDeal(d, settings.shopperProfile)} action={styleMenu(d)} />)}</DealResultsGrid>
         </> : <div className="grid overflow-hidden rounded-3xl border border-paper-line bg-paper-card md:grid-cols-[1.2fr_1fr]">
           <div className="p-6 sm:p-8"><span className="mb-4 inline-flex rounded-2xl bg-proof-soft p-3 text-proof"><ShieldCheck className="h-7 w-7" /></span>
             <h3 className="font-display text-2xl font-bold">Le bon plan mérite d’être le bon produit.</h3>
@@ -151,6 +158,7 @@ export default async function HomePage() {
         <DealResultsGrid className={dealGrid}>{discoveries.map(r => <DealCard key={r.offer_id} d={{...fromFlash(r,settings.shopperProfile), highlights:[]}} />)}</DealResultsGrid>
       </section>}
       <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-paper-line bg-paper-card px-5 py-4 text-xs text-ink-mute"><span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-proof" /> Aucune taille devinée</span><span>Prix barrés : déclarations du vendeur</span><span>Historique : nos propres relevés</span><Link className="ml-auto font-semibold text-ink hover:underline" href="/collectes">Voir la qualité des collectes →</Link></div>
+      <StyleUndoNotice />
     </>
   );
 }
